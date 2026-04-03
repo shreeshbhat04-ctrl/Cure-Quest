@@ -13,3 +13,8 @@ dist/
 build/
 .coverage
 htmlcov/
+/credentials/google_calendar_credentials.json
+/credentials/google_oauth_credentials.json
+/credentials/google_drive_credentials.json
+/credentials/client_secret_315569715049-cderasb8vf2pac410njjps1u4rueafi8.apps.googleusercontent.com.json
+/credentials/*.json

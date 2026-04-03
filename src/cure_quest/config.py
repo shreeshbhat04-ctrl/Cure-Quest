@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     google_cloud_project: str | None = None
     google_cloud_location: str = "us-central1"
     adk_model: str = "gemini-2.5-pro"
+    google_oauth_client_file: str = "credentials/google_oauth_client.json"
+    google_drive_token_file: str = "credentials/google_drive_token.json"
+    google_calendar_token_file: str = "credentials/google_calendar_token.json"
+    google_drive_folder_id: str | None = None
+    google_calendar_id: str = "primary"
+    asana_access_token: str | None = None
+    asana_project_gid: str | None = None
+    asana_assignee_gid: str | None = None
+    asana_workspace_gid: str | None = None
+    asana_task_due_on: str | None = None
     mcp_server_command: str = "python"
     mcp_server_args: str = "-m cure_quest.mcp.server"
 

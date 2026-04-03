@@ -55,6 +55,24 @@ python scripts/test_database_connection.py
 python scripts/test_adk_agent.py
 ```
 
+8. Inspect Asana connectivity and IDs:
+
+```powershell
+python scripts/test_asana_connection.py
+```
+
+9. Inspect Google Drive connectivity:
+
+```powershell
+python scripts/test_drive_connection.py
+```
+
+10. Inspect Google Calendar connectivity:
+
+```powershell
+python scripts/test_calendar_connection.py
+```
+
 ## Brain architecture
 
 The project now supports two brain gateway modes:
@@ -91,3 +109,4 @@ tests/          Basic unit tests
 - The default database is SQLite for friction-free local bootstrapping, but the schema is SQLAlchemy-based so it can be pointed at Postgres or AlloyDB with `DATABASE_URL`.
 - The MCP server is local and deterministic by design so we can verify transport and tool discovery before adding real clinical logic.
 - The ADK agent requires a valid `GOOGLE_API_KEY` before model-backed runs will work.
+- Real Asana ticket creation turns on automatically when `ASANA_ACCESS_TOKEN` and `ASANA_PROJECT_GID` are set.

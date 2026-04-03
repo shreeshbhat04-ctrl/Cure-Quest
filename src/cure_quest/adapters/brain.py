@@ -9,6 +9,7 @@ from mcp.client.stdio import stdio_client
 
 from cure_quest.config import get_settings
 from cure_quest.db.session import SessionLocal
+from cure_quest.mcp.client_utils import extract_mcp_payload
 from cure_quest.services.brain import BrainCondition, BrainPatientProfile, BrainService
 
 
@@ -60,7 +61,7 @@ class McpBrainGateway(BrainGateway):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(tool_name, arguments=arguments)
-                return result.structuredContent
+                return extract_mcp_payload(result)
 
     def healthcheck(self) -> dict[str, str]:
         return asyncio.run(self._call_tool("brain_healthcheck", {}))

@@ -11,6 +11,7 @@ from cure_quest.agents.intake import IntakeAgent
 from cure_quest.api.models import ConditionInput, PatientIntakeRequest
 from cure_quest.db.bootstrap import init_database
 from cure_quest.db.session import SessionLocal
+from cure_quest.mcp.client_utils import extract_mcp_payload
 
 
 def seed_demo_patient() -> int:
@@ -46,28 +47,28 @@ async def main() -> None:
             print("TOOLS", [tool.name for tool in tools.tools])
 
             ping_result = await session.call_tool("ping", arguments={})
-            print("PING", json.dumps(ping_result.structuredContent, indent=2))
+            print("PING", json.dumps(extract_mcp_payload(ping_result), indent=2))
 
             brain_result = await session.call_tool("brain_healthcheck", arguments={})
-            print("BRAIN", json.dumps(brain_result.structuredContent, indent=2))
+            print("BRAIN", json.dumps(extract_mcp_payload(brain_result), indent=2))
 
             profile_result = await session.call_tool(
                 "brain_get_patient_profile",
                 arguments={"patient_id": patient_id},
             )
-            print("PROFILE", json.dumps(profile_result.structuredContent, indent=2))
+            print("PROFILE", json.dumps(extract_mcp_payload(profile_result), indent=2))
 
             conditions_result = await session.call_tool(
                 "brain_get_relevant_conditions",
                 arguments={"patient_id": patient_id},
             )
-            print("CONDITIONS", json.dumps(conditions_result.structuredContent, indent=2))
+            print("CONDITIONS", json.dumps(extract_mcp_payload(conditions_result), indent=2))
 
             emergency_result = await session.call_tool(
                 "check_emergency",
                 arguments={"text": "Patient says chest pain started 10 minutes ago."},
             )
-            print("EMERGENCY", json.dumps(emergency_result.structuredContent, indent=2))
+            print("EMERGENCY", json.dumps(extract_mcp_payload(emergency_result), indent=2))
 
 
 if __name__ == "__main__":

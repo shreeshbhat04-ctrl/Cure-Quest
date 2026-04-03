@@ -5,8 +5,13 @@ Summary: Chronic care AI copilot scaffold with FastAPI, MCP, and Google ADK.
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: fastapi>=0.115
+Requires-Dist: google-api-python-client>=2.151.0
+Requires-Dist: google-auth-oauthlib>=1.2.1
+Requires-Dist: google-auth-httplib2>=0.2.0
+Requires-Dist: httpx>=0.27
 Requires-Dist: uvicorn[standard]>=0.30
 Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: psycopg[binary]>=3.2
 Requires-Dist: pydantic>=2.8
 Requires-Dist: pydantic-settings>=2.4
 Requires-Dist: jinja2>=3.1
@@ -14,7 +19,6 @@ Requires-Dist: google-adk
 Requires-Dist: mcp[cli]
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2; extra == "dev"
-Requires-Dist: httpx>=0.27; extra == "dev"
 
 # Cure-Quest
 
@@ -23,10 +27,10 @@ Cure-Quest is the starter codebase for a chronic-care AI copilot demo. This firs
 ## What is included
 
 - FastAPI application with `health`, `demo`, and placeholder workflow endpoints
-- Local MCP server with deterministic tools for connectivity checks
+- Local MCP server with deterministic tools and DB-backed "brain" tools
 - Google ADK agent definition configured to load tools from the local MCP server over stdio
 - SQLAlchemy models for the first demo entities
-- PowerShell and Python scripts to set up the environment and smoke-test MCP/ADK wiring
+- PowerShell and Python scripts to set up the environment and smoke-test DB/MCP/ADK wiring
 
 ## Quick start
 
@@ -61,11 +65,50 @@ uvicorn cure_quest.app:app --reload
 python scripts/test_mcp_connection.py
 ```
 
-6. Smoke-test ADK setup:
+6. Smoke-test database connectivity:
+
+```powershell
+python scripts/test_database_connection.py
+```
+
+7. Smoke-test ADK setup:
 
 ```powershell
 python scripts/test_adk_agent.py
 ```
+
+8. Inspect Asana connectivity and IDs:
+
+```powershell
+python scripts/test_asana_connection.py
+```
+
+9. Inspect Google Drive connectivity:
+
+```powershell
+python scripts/test_drive_connection.py
+```
+
+10. Inspect Google Calendar connectivity:
+
+```powershell
+python scripts/test_calendar_connection.py
+```
+
+## Brain architecture
+
+The project now supports two brain gateway modes:
+
+- `direct`: agents call a shared `BrainService` directly through SQLAlchemy. This is the easiest local dev path.
+- `mcp`: agents call the MCP server, and the MCP server reads from the same DB. This gives you the intended `agent -> MCP -> DB/AlloyDB` flow.
+
+Set `BRAIN_GATEWAY_MODE=mcp` in `.env` when you want the full transport path.
+
+## AlloyDB direction
+
+- The current schema is Postgres-compatible and can be pointed at AlloyDB through `DATABASE_URL`.
+- A starter MCP Toolbox config lives at `toolbox/tools.yaml.example`.
+- For a real AlloyDB setup, create the database first, then set `DATABASE_URL=postgresql+psycopg://...` and rerun the smoke tests.
 
 ## Project layout
 
@@ -88,3 +131,4 @@ tests/          Basic unit tests
 - The default database is SQLite for friction-free local bootstrapping, but the schema is SQLAlchemy-based so it can be pointed at Postgres or AlloyDB with `DATABASE_URL`.
 - The MCP server is local and deterministic by design so we can verify transport and tool discovery before adding real clinical logic.
 - The ADK agent requires a valid `GOOGLE_API_KEY` before model-backed runs will work.
+- Real Asana ticket creation turns on automatically when `ASANA_ACCESS_TOKEN` and `ASANA_PROJECT_GID` are set.
