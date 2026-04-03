@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+src/cure_quest.egg-info/PKG-INFO
+src/cure_quest.egg-info/SOURCES.txt
+src/cure_quest.egg-info/dependency_links.txt
+src/cure_quest.egg-info/requires.txt
+src/cure_quest.egg-info/top_level.txt

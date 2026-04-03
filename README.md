@@ -1,0 +1,93 @@
+# Cure-Quest
+
+Cure-Quest is the starter codebase for a chronic-care AI copilot demo. This first scaffold focuses on local development setup, a thin FastAPI app, a local MCP server, and a Google ADK agent wired to that MCP server.
+
+## What is included
+
+- FastAPI application with `health`, `demo`, and placeholder workflow endpoints
+- Local MCP server with deterministic tools and DB-backed "brain" tools
+- Google ADK agent definition configured to load tools from the local MCP server over stdio
+- SQLAlchemy models for the first demo entities
+- PowerShell and Python scripts to set up the environment and smoke-test DB/MCP/ADK wiring
+
+## Quick start
+
+1. Create a virtual environment:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+2. Install dependencies:
+
+```powershell
+pip install -e .[dev]
+```
+
+3. Copy the environment file and update values as needed:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+4. Run the API:
+
+```powershell
+uvicorn cure_quest.app:app --reload
+```
+
+5. Smoke-test MCP connectivity:
+
+```powershell
+python scripts/test_mcp_connection.py
+```
+
+6. Smoke-test database connectivity:
+
+```powershell
+python scripts/test_database_connection.py
+```
+
+7. Smoke-test ADK setup:
+
+```powershell
+python scripts/test_adk_agent.py
+```
+
+## Brain architecture
+
+The project now supports two brain gateway modes:
+
+- `direct`: agents call a shared `BrainService` directly through SQLAlchemy. This is the easiest local dev path.
+- `mcp`: agents call the MCP server, and the MCP server reads from the same DB. This gives you the intended `agent -> MCP -> DB/AlloyDB` flow.
+
+Set `BRAIN_GATEWAY_MODE=mcp` in `.env` when you want the full transport path.
+
+## AlloyDB direction
+
+- The current schema is Postgres-compatible and can be pointed at AlloyDB through `DATABASE_URL`.
+- A starter MCP Toolbox config lives at `toolbox/tools.yaml.example`.
+- For a real AlloyDB setup, create the database first, then set `DATABASE_URL=postgresql+psycopg://...` and rerun the smoke tests.
+
+## Project layout
+
+```text
+src/cure_quest/
+  api/          HTTP routes and request/response models
+  agents/       Domain agents used by the orchestrator
+  adapters/     Mock external integrations and future MCP boundaries
+  db/           Database session setup and SQLAlchemy models
+  demo_ui/      Minimal HTML dashboard
+  mcp/          Local MCP server
+  adk/          Google ADK agent definition
+  services/     Shared orchestration and safety logic
+scripts/        Setup and smoke-test helpers
+tests/          Basic unit tests
+```
+
+## Notes
+
+- The default database is SQLite for friction-free local bootstrapping, but the schema is SQLAlchemy-based so it can be pointed at Postgres or AlloyDB with `DATABASE_URL`.
+- The MCP server is local and deterministic by design so we can verify transport and tool discovery before adding real clinical logic.
+- The ADK agent requires a valid `GOOGLE_API_KEY` before model-backed runs will work.

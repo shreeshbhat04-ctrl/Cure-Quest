@@ -1,0 +1,1 @@
+"""Cure-Quest package."""

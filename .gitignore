@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.tmp/
+pytest-cache-files-*/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.env
+dist/
+build/
+.coverage
+htmlcov/
