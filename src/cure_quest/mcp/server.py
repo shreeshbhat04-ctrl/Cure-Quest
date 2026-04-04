@@ -1,11 +1,17 @@
 from mcp.server.fastmcp import FastMCP
 
+from cure_quest.adapters.analytics import BigQueryAnalyticsAdapter
+from cure_quest.adapters.openfda import OpenFDAAdapter
+from cure_quest.adapters.pharmacy import PharmacySearchAdapter
 from cure_quest.db.session import SessionLocal
 from cure_quest.services.emergency import detect_emergency
 from cure_quest.services.brain import BrainService
 
 mcp = FastMCP("CureQuestLocal", json_response=True)
 brain_service = BrainService()
+analytics_adapter = BigQueryAnalyticsAdapter()
+openfda_adapter = OpenFDAAdapter()
+pharmacy_adapter = PharmacySearchAdapter()
 
 
 @mcp.tool()
@@ -48,6 +54,24 @@ def brain_get_relevant_conditions(patient_id: int) -> dict:
     with SessionLocal() as db:
         conditions = brain_service.get_relevant_conditions(db, patient_id)
         return {"conditions": [condition.to_dict() for condition in conditions]}
+
+
+@mcp.tool()
+def analytics_log_event(event_type: str, payload: dict) -> dict:
+    """Log an integration event to BigQuery when configured."""
+    return analytics_adapter.log_event(event_type=event_type, payload=payload)
+
+
+@mcp.tool()
+def drug_lookup_label(medication_name: str) -> dict:
+    """Lookup drug label details from openFDA."""
+    return openfda_adapter.lookup_drug_label(medication_name)
+
+
+@mcp.tool()
+def pharmacy_search(location_query: str) -> dict:
+    """Search for nearby pharmacies using Google Places."""
+    return pharmacy_adapter.search_nearby_pharmacies(location_query)
 
 
 def main() -> None:

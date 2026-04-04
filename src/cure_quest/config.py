@@ -12,10 +12,14 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     app_host: str = "127.0.0.1"
     app_port: int = 8000
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    app_api_key: str | None = None
     database_url: str = "sqlite:///./cure_quest.db"
     brain_gateway_mode: Literal["direct", "mcp"] = "direct"
     ocr_confidence_threshold: float = Field(default=0.85, ge=0, le=1)
     acute_condition_lookback_days: int = 180
+    integration_max_retries: int = 2
+    integration_retry_delay_ms: int = 300
     alloydb_project: str | None = None
     alloydb_region: str | None = None
     alloydb_cluster: str | None = None
@@ -33,6 +37,18 @@ class Settings(BaseSettings):
     google_calendar_token_file: str = "credentials/google_calendar_token.json"
     google_drive_folder_id: str | None = None
     google_calendar_id: str = "primary"
+    bigquery_project_id: str | None = None
+    bigquery_dataset_id: str = "cure_quest"
+    bigquery_table_id: str = "integration_events"
+    openfda_api_key: str | None = None
+    google_maps_api_key: str | None = None
+    medical_model_backend: Literal["placeholder", "huggingface", "vertex"] = "placeholder"
+    huggingface_hub_token: str | None = None
+    medgemma_model_id: str = "google/medgemma-1.5-4b-it"
+    medsiglip_model_id: str = "google/medsiglip-448"
+    medical_embedding_dimensions: int = 768
+    medical_vector_table_name: str = "medical_memories_vector"
+    gemini_fast_model_id: str = "gemini-3.1-flash"
     asana_access_token: str | None = None
     asana_project_gid: str | None = None
     asana_assignee_gid: str | None = None
@@ -44,6 +60,10 @@ class Settings(BaseSettings):
     @property
     def mcp_server_arg_list(self) -> list[str]:
         return [part for part in self.mcp_server_args.split(" ") if part]
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache

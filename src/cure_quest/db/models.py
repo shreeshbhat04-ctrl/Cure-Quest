@@ -50,6 +50,8 @@ class Prescription(Base):
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0)
     review_status: Mapped[str] = mapped_column(String(50), default="pending")
+    document_drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    document_drive_file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     patient: Mapped[Patient] = relationship(back_populates="prescriptions")
@@ -75,6 +77,12 @@ class EscalationCase(Base):
     status: Mapped[str] = mapped_column(String(50), default="open")
     summary: Mapped[str] = mapped_column(Text)
     external_ticket_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_ticket_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    drive_file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    calendar_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    calendar_event_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pharmacy_search_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -90,3 +98,20 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     patient: Mapped[Patient] = relationship(back_populates="notifications")
+
+
+class MedicalMemory(Base):
+    __tablename__ = "medical_memories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    source_type: Mapped[str] = mapped_column(String(50))
+    source_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    modality: Mapped[str] = mapped_column(String(32), default="text")
+    embedding_model: Mapped[str] = mapped_column(String(128))
+    embedding_vector: Mapped[str] = mapped_column(Text)
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    drive_file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

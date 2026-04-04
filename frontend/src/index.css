@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Noto Serif", serif;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+
+  --color-primary: #536431;
+  --color-primary-container: #879a61;
+  --color-primary-fixed: #d5ebaa;
+  
+  --color-secondary: #784327;
+  --color-secondary-container: #fdb38f;
+  --color-on-secondary-container: #784327;
+  
+  --color-tertiary: #a39172;
+  --color-tertiary-container: #a39172;
+  
+  --color-surface: #fcfaee;
+  --color-surface-dim: #f2f0e4;
+  --color-surface-container-low: #f6f4e8;
+  --color-surface-container-high: #eae8dd;
+  --color-surface-container-highest: #e5e3d7;
+  --color-surface-container-lowest: #ffffff;
+  
+  --color-on-surface: #1b1c15;
+  --color-outline-variant: #c6c8b8;
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+  }
+
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+    line-height: 1.7;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif tracking-tight;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-surface-container-lowest/85 backdrop-blur-[20px];
+  }
+  
+  .nurture-card {
+    @apply bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_16px_40px_-10px_rgba(27,28,21,0.08)];
+  }
+  
+  .river-stone-btn {
+    @apply rounded-[3rem] font-sans font-medium transition-[transform,background-color,color,box-shadow] duration-200 ease-out active:scale-[0.97];
+  }
+
+  .input-shell {
+    @apply w-full rounded-[1.5rem] bg-surface-container-high px-5 py-4 text-[0.98rem] text-on-surface outline-none transition-[box-shadow,background-color] duration-200 ease-out placeholder:text-on-surface/35 focus:bg-surface-container-low focus:shadow-[0_0_0_4px_rgba(213,235,170,0.35)];
+  }
+
+  .eyebrow {
+    @apply text-[0.72rem] font-semibold uppercase tracking-[0.24em];
+  }
+
+  .soft-panel {
+    @apply rounded-[1.5rem] bg-surface-container-low px-5 py-4;
+  }
+}

@@ -73,6 +73,68 @@ python scripts/test_drive_connection.py
 python scripts/test_calendar_connection.py
 ```
 
+## Extra integrations
+
+- `POST /documents/upload` uploads a local file to Google Drive and can attach it to a prescription record.
+- `POST /calendar/events` creates a Google Calendar event.
+- `POST /drug/label` looks up drug label data from openFDA.
+- `POST /pharmacy/search` searches nearby pharmacies using Google Places.
+- `POST /patient/escalate` can now also upload a document, create a follow-up calendar event, and store external links on the escalation case.
+
+## Orchestration agent surfaces
+
+- `GET /orchestration/check-in/{patient_id}` builds a patient-facing daily check-in using profile, conditions, and routine tasks.
+- `GET /orchestration/routine/{patient_id}` returns the routine/reminder task snapshot, currently backed by Asana or mock tasks.
+- `POST /orchestration/hitl-report` builds a detailed doctor report and can optionally create a real escalation case.
+- `POST /orchestration/diet-support` builds medication-aware diet guidance and pharmacy context.
+- `POST /orchestration/document-pipeline` describes the OCR + storage pipeline for uploaded medical documents.
+- `POST /orchestration/run-document-flow` runs the end-to-end document intake workflow automatically.
+- `GET /orchestration/routine-automation/{patient_id}` evaluates routine risk and can prepare HITL escalation.
+- `GET /orchestration/manifest/{patient_id}` shows the current five-agent orchestration structure and model assignments.
+
+## Medical model execution
+
+The repo now supports two layers for medical-model work:
+
+- routing-only orchestration that decides when `MedGemma`, `MedSigLIP`, or `Gemini 3.1 Flash` should be used
+- optional Hugging Face execution for `MedGemma` and `MedSigLIP`
+
+To enable the Hugging Face backend:
+
+```powershell
+pip install -e .[hf]
+```
+
+You will also need a PyTorch install that matches your machine. Follow the selector at:
+
+- https://pytorch.org/get-started/locally/
+
+Then set these in `.env`:
+
+```env
+MEDICAL_MODEL_BACKEND=huggingface
+HUGGINGFACE_HUB_TOKEN=
+MEDGEMMA_MODEL_ID=google/medgemma-1.5-4b-it
+MEDSIGLIP_MODEL_ID=google/medsiglip-448
+```
+
+Useful endpoints:
+
+- `POST /medical-models/medgemma`
+- `POST /medical-models/medsiglip/classify`
+- `POST /medical-memory/store`
+- `POST /medical-memory/search`
+
+If `use_live_embedding=true` is passed to `/medical-memory/store`, the app will try to generate a real `MedSigLIP` embedding before saving the memory.
+
+## BigQuery and AlloyDB setup helpers
+
+- `python scripts/setup_bigquery_table.py`
+- `python scripts/test_bigquery_logging.py`
+- `python scripts/setup_alloydb_vector.py`
+
+These helpers prepare the analytics table and pgvector-compatible storage when your environment is pointed at BigQuery and AlloyDB/Postgres.
+
 ## Brain architecture
 
 The project now supports two brain gateway modes:
@@ -91,6 +153,7 @@ Set `BRAIN_GATEWAY_MODE=mcp` in `.env` when you want the full transport path.
 ## Project layout
 
 ```text
+frontend/       Vite frontend for the four-screen Cure-Quest UI
 src/cure_quest/
   api/          HTTP routes and request/response models
   agents/       Domain agents used by the orchestrator
@@ -110,3 +173,4 @@ tests/          Basic unit tests
 - The MCP server is local and deterministic by design so we can verify transport and tool discovery before adding real clinical logic.
 - The ADK agent requires a valid `GOOGLE_API_KEY` before model-backed runs will work.
 - Real Asana ticket creation turns on automatically when `ASANA_ACCESS_TOKEN` and `ASANA_PROJECT_GID` are set.
+- The official frontend now lives in `frontend/` and talks directly to the FastAPI backend.

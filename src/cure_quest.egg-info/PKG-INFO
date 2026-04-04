@@ -8,6 +8,7 @@ Requires-Dist: fastapi>=0.115
 Requires-Dist: google-api-python-client>=2.151.0
 Requires-Dist: google-auth-oauthlib>=1.2.1
 Requires-Dist: google-auth-httplib2>=0.2.0
+Requires-Dist: google-cloud-bigquery>=3.29.0
 Requires-Dist: httpx>=0.27
 Requires-Dist: uvicorn[standard]>=0.30
 Requires-Dist: sqlalchemy>=2.0
@@ -19,6 +20,11 @@ Requires-Dist: google-adk
 Requires-Dist: mcp[cli]
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2; extra == "dev"
+Provides-Extra: hf
+Requires-Dist: transformers>=4.52; extra == "hf"
+Requires-Dist: pillow>=10.4; extra == "hf"
+Requires-Dist: accelerate>=1.1; extra == "hf"
+Requires-Dist: sentencepiece>=0.2; extra == "hf"
 
 # Cure-Quest
 
@@ -94,6 +100,58 @@ python scripts/test_drive_connection.py
 ```powershell
 python scripts/test_calendar_connection.py
 ```
+
+## Extra integrations
+
+- `POST /documents/upload` uploads a local file to Google Drive and can attach it to a prescription record.
+- `POST /calendar/events` creates a Google Calendar event.
+- `POST /drug/label` looks up drug label data from openFDA.
+- `POST /pharmacy/search` searches nearby pharmacies using Google Places.
+- `POST /patient/escalate` can now also upload a document, create a follow-up calendar event, and store external links on the escalation case.
+
+## Orchestration agent surfaces
+
+- `GET /orchestration/check-in/{patient_id}` builds a patient-facing daily check-in using profile, conditions, and routine tasks.
+- `GET /orchestration/routine/{patient_id}` returns the routine/reminder task snapshot, currently backed by Asana or mock tasks.
+- `POST /orchestration/hitl-report` builds a detailed doctor report and can optionally create a real escalation case.
+- `POST /orchestration/diet-support` builds medication-aware diet guidance and pharmacy context.
+- `POST /orchestration/document-pipeline` describes the OCR + storage pipeline for uploaded medical documents.
+- `GET /orchestration/manifest/{patient_id}` shows the current five-agent orchestration structure and model assignments.
+
+## Medical model execution
+
+The repo now supports two layers for medical-model work:
+
+- routing-only orchestration that decides when `MedGemma`, `MedSigLIP`, or `Gemini 3.1 Flash` should be used
+- optional Hugging Face execution for `MedGemma` and `MedSigLIP`
+
+To enable the Hugging Face backend:
+
+```powershell
+pip install -e .[hf]
+```
+
+You will also need a PyTorch install that matches your machine. Follow the selector at:
+
+- https://pytorch.org/get-started/locally/
+
+Then set these in `.env`:
+
+```env
+MEDICAL_MODEL_BACKEND=huggingface
+HUGGINGFACE_HUB_TOKEN=
+MEDGEMMA_MODEL_ID=google/medgemma-1.5-4b-it
+MEDSIGLIP_MODEL_ID=google/medsiglip-448
+```
+
+Useful endpoints:
+
+- `POST /medical-models/medgemma`
+- `POST /medical-models/medsiglip/classify`
+- `POST /medical-memory/store`
+- `POST /medical-memory/search`
+
+If `use_live_embedding=true` is passed to `/medical-memory/store`, the app will try to generate a real `MedSigLIP` embedding before saving the memory.
 
 ## Brain architecture
 

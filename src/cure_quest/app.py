@@ -1,6 +1,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from cure_quest.api.routes import router
 from cure_quest.config import get_settings
@@ -13,6 +17,26 @@ async def lifespan(_: FastAPI):
     yield
 
 
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        settings = get_settings()
+        if not settings.app_api_key:
+            return await call_next(request)
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            return await call_next(request)
+        if request.headers.get("x-api-key") != settings.app_api_key:
+            return JSONResponse({"detail": "Invalid or missing API key."}, status_code=401)
+        return await call_next(request)
+
+
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.add_middleware(ApiKeyMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(router)

@@ -11,6 +11,9 @@ pytest-cache-files-*/
 .env
 dist/
 build/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
 .coverage
 htmlcov/
 /credentials/google_calendar_credentials.json

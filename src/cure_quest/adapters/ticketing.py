@@ -14,8 +14,22 @@ class TicketResult:
     external_url: str | None = None
 
 
+@dataclass
+class RoutineTask:
+    task_id: str
+    name: str
+    completed: bool
+    due_on: str | None = None
+    notes: str | None = None
+    assignee_name: str | None = None
+    permalink_url: str | None = None
+
+
 class TicketingAdapter:
     def create_review_ticket(self, patient_id: int, summary: str, case_type: str) -> TicketResult:
+        raise NotImplementedError
+
+    def list_routine_tasks(self) -> list[RoutineTask]:
         raise NotImplementedError
 
 
@@ -24,6 +38,28 @@ class MockTicketingAdapter(TicketingAdapter):
         _ = (patient_id, summary, case_type)
         ticket_id = f"CQ-{str(uuid4())[:8].upper()}"
         return TicketResult(ticket_id=ticket_id, status="created")
+
+    def list_routine_tasks(self) -> list[RoutineTask]:
+        return [
+            RoutineTask(
+                task_id="mock-1",
+                name="Morning medication reminder",
+                completed=False,
+                due_on=date.today().isoformat(),
+                notes="Check whether the patient took the morning dose.",
+                assignee_name="Care Coordinator",
+                permalink_url=None,
+            ),
+            RoutineTask(
+                task_id="mock-2",
+                name="Follow-up symptom check",
+                completed=False,
+                due_on=date.today().isoformat(),
+                notes="Ask how the patient is feeling today.",
+                assignee_name="Care Coordinator",
+                permalink_url=None,
+            ),
+        ]
 
 
 class AsanaTicketingAdapter(TicketingAdapter):
@@ -68,6 +104,44 @@ class AsanaTicketingAdapter(TicketingAdapter):
         task_gid = payload["gid"]
         permalink = payload.get("permalink_url")
         return TicketResult(ticket_id=task_gid, status="created", external_url=permalink)
+
+    def list_routine_tasks(self) -> list[RoutineTask]:
+        if not self.settings.asana_access_token or not self.settings.asana_project_gid:
+            raise ValueError("ASANA_ACCESS_TOKEN and ASANA_PROJECT_GID must be configured.")
+
+        headers = {
+            "Authorization": f"Bearer {self.settings.asana_access_token}",
+            "Accept": "application/json",
+        }
+        params = {
+            "completed_since": "now",
+            "opt_fields": "name,completed,due_on,notes,assignee.name,permalink_url",
+            "limit": 20,
+        }
+
+        with httpx.Client(timeout=20.0) as client:
+            response = client.get(
+                f"{self.base_url}/projects/{self.settings.asana_project_gid}/tasks",
+                params=params,
+                headers=headers,
+            )
+            response.raise_for_status()
+            payload = response.json()["data"]
+        tasks = [
+            RoutineTask(
+                task_id=item["gid"],
+                name=item.get("name", ""),
+                completed=item.get("completed", False),
+                due_on=item.get("due_on"),
+                notes=item.get("notes"),
+                assignee_name=(item.get("assignee") or {}).get("name"),
+                permalink_url=item.get("permalink_url"),
+            )
+            for item in payload
+        ]
+        if self.settings.asana_assignee_gid:
+            tasks = [task for task in tasks if task.assignee_name]
+        return tasks
 
 
 def build_ticketing_adapter() -> TicketingAdapter:

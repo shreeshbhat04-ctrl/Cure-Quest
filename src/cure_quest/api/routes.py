@@ -6,18 +6,51 @@ from sqlalchemy.orm import Session
 from cure_quest.agents.orchestrator import Orchestrator
 from cure_quest.api.models import (
     CaseResponse,
+    CalendarEventRequest,
+    CalendarEventResponse,
     CheckAlternativesRequest,
     CheckAlternativesResponse,
+    ConversationRoutingRequest,
+    ConversationRoutingResponse,
+    DailyCheckInResponse,
+    DietSupportRequest,
+    DietSupportResponse,
+    DocumentFlowRequest,
+    DocumentFlowResponse,
+    DocumentPipelineRequest,
+    DocumentPipelineResponse,
+    DriveUploadRequest,
+    DriveUploadResponse,
+    DrugLabelRequest,
+    DrugLabelResponse,
     EscalateRequest,
     EscalateResponse,
+    HitlReportRequest,
+    HitlReportResponse,
+    MedicalRoutingRequest,
+    MedicalRoutingResponse,
+    MedicalMemorySearchRequest,
+    MedicalMemorySearchResponse,
+    MedicalMemoryStoreRequest,
+    MedicalMemoryStoreResponse,
+    MedGemmaRequest,
+    MedGemmaResponse,
+    MedSigLIPClassificationRequest,
+    MedSigLIPClassificationResponse,
     NotifyRequest,
     NotifyResponse,
+    OrchestrationManifestResponse,
     PatientIntakeRequest,
     PatientIntakeResponse,
+    PharmacySearchRequest,
+    PharmacySearchResponse,
     PrescriptionScanRequest,
     PrescriptionScanResponse,
+    RoutineSnapshotResponse,
+    RoutineAutomationResponse,
 )
 from cure_quest.db.models import EscalationCase
+from cure_quest.db.models import ChronicCondition, MedicalMemory, Notification, Patient, Prescription
 from cure_quest.db.session import get_db
 from cure_quest.demo_ui.dashboard import render_dashboard
 
@@ -33,6 +66,105 @@ def health() -> dict[str, str]:
 @router.get("/demo", response_class=HTMLResponse)
 def demo() -> str:
     return render_dashboard()
+
+
+@router.get("/demo/patient/{patient_id}/workspace")
+def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    conditions = db.scalars(
+        select(ChronicCondition).where(ChronicCondition.patient_id == patient_id).order_by(ChronicCondition.id.desc())
+    ).all()
+    prescriptions = db.scalars(
+        select(Prescription).where(Prescription.patient_id == patient_id).order_by(Prescription.created_at.desc())
+    ).all()
+    notifications = db.scalars(
+        select(Notification).where(Notification.patient_id == patient_id).order_by(Notification.created_at.desc())
+    ).all()
+    cases = db.scalars(
+        select(EscalationCase).where(EscalationCase.patient_id == patient_id).order_by(EscalationCase.created_at.desc())
+    ).all()
+    memories = db.scalars(
+        select(MedicalMemory).where(MedicalMemory.patient_id == patient_id).order_by(MedicalMemory.created_at.desc())
+    ).all()
+
+    checkin = orchestrator.build_daily_checkin(patient_id)
+    manifest = orchestrator.get_orchestration_manifest(patient_id)
+
+    return {
+        "patient": {
+            "id": patient.id,
+            "full_name": patient.full_name,
+            "preferred_language": patient.preferred_language,
+            "summary": patient.summary,
+            "date_of_birth": None if patient.date_of_birth is None else patient.date_of_birth.isoformat(),
+        },
+        "conditions": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "condition_type": item.condition_type,
+                "last_updated": None if item.last_updated is None else item.last_updated.isoformat(),
+                "notes": item.notes,
+            }
+            for item in conditions
+        ],
+        "prescriptions": [
+            {
+                "id": item.id,
+                "medication_name": item.medication_name,
+                "dosage": item.dosage,
+                "instructions": item.instructions,
+                "review_status": item.review_status,
+                "confidence_score": item.confidence_score,
+                "document_drive_file_url": item.document_drive_file_url,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in prescriptions
+        ],
+        "notifications": [
+            {
+                "id": item.id,
+                "channel": item.channel,
+                "message_type": item.message_type,
+                "body": item.body,
+                "delivery_status": item.delivery_status,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in notifications
+        ],
+        "cases": [
+            {
+                "id": item.id,
+                "case_type": item.case_type,
+                "status": item.status,
+                "summary": item.summary,
+                "external_ticket_id": item.external_ticket_id,
+                "external_ticket_url": item.external_ticket_url,
+                "drive_file_url": item.drive_file_url,
+                "calendar_event_url": item.calendar_event_url,
+                "pharmacy_search_summary": item.pharmacy_search_summary,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in cases
+        ],
+        "memories": [
+            {
+                "id": item.id,
+                "source_type": item.source_type,
+                "modality": item.modality,
+                "embedding_model": item.embedding_model,
+                "summary_text": item.summary_text,
+                "drive_file_url": item.drive_file_url,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in memories
+        ],
+        "checkin": checkin,
+        "manifest": manifest,
+    }
 
 
 @router.post("/patient/intake", response_model=PatientIntakeResponse)
@@ -76,7 +208,61 @@ def check_alternatives(payload: CheckAlternativesRequest) -> CheckAlternativesRe
 @router.post("/patient/escalate", response_model=EscalateResponse)
 def escalate(payload: EscalateRequest, db: Session = Depends(get_db)) -> EscalateResponse:
     case = orchestrator.hitl.create_case(db, payload.patient_id, payload.case_type, payload.summary)
-    return EscalateResponse(case_id=case.id, external_ticket_id=case.external_ticket_id, status=case.status)
+    drive_result = None
+    if payload.document_file_path:
+        drive_result = orchestrator.integrations.upload_document(
+            db=db,
+            patient_id=payload.patient_id,
+            file_path=payload.document_file_path,
+            mime_type="application/pdf" if payload.document_file_path.lower().endswith(".pdf") else "application/octet-stream",
+        )
+        case.drive_file_id = drive_result.get("id")
+        case.drive_file_url = drive_result.get("webViewLink")
+
+    calendar_result = None
+    if payload.create_calendar_event:
+        calendar_result = orchestrator.integrations.create_calendar_event(
+            db=db,
+            patient_id=payload.patient_id,
+            summary=payload.calendar_summary or f"Cure-Quest follow-up for patient {payload.patient_id}",
+            minutes_from_now=payload.calendar_minutes_from_now,
+            duration_minutes=payload.calendar_duration_minutes,
+            escalation_case_id=case.id,
+        )
+
+    pharmacy_result = None
+    if payload.pharmacy_location_query:
+        pharmacy_result = orchestrator.integrations.search_nearby_pharmacies(payload.pharmacy_location_query)
+        pharmacy_names = [item["name"] for item in pharmacy_result.get("pharmacies", [])[:3] if item.get("name")]
+        case.pharmacy_search_summary = ", ".join(pharmacy_names) if pharmacy_names else "No pharmacies found"
+
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+
+    orchestrator.integrations.log_integration_event(
+        "escalation_case_created",
+        {
+            "case_id": case.id,
+            "patient_id": payload.patient_id,
+            "external_ticket_id": case.external_ticket_id,
+            "drive_file_id": case.drive_file_id,
+            "calendar_event_id": case.calendar_event_id,
+            "pharmacy_search_summary": case.pharmacy_search_summary,
+        },
+    )
+
+    return EscalateResponse(
+        case_id=case.id,
+        external_ticket_id=case.external_ticket_id,
+        status=case.status,
+        external_ticket_url=case.external_ticket_url,
+        drive_file_id=case.drive_file_id,
+        drive_file_url=case.drive_file_url,
+        calendar_event_id=case.calendar_event_id,
+        calendar_event_url=case.calendar_event_url,
+        pharmacy_search_summary=case.pharmacy_search_summary,
+    )
 
 
 @router.post("/patient/notify", response_model=NotifyResponse)
@@ -103,4 +289,215 @@ def get_case(case_id: int, db: Session = Depends(get_db)) -> CaseResponse:
         status=case.status,
         summary=case.summary,
         external_ticket_id=case.external_ticket_id,
+        external_ticket_url=case.external_ticket_url,
+        drive_file_id=case.drive_file_id,
+        drive_file_url=case.drive_file_url,
+        calendar_event_id=case.calendar_event_id,
+        calendar_event_url=case.calendar_event_url,
+        pharmacy_search_summary=case.pharmacy_search_summary,
     )
+
+
+@router.post("/documents/upload", response_model=DriveUploadResponse)
+def upload_document(payload: DriveUploadRequest, db: Session = Depends(get_db)) -> DriveUploadResponse:
+    result = orchestrator.integrations.upload_document(
+        db=db,
+        patient_id=payload.patient_id,
+        file_path=payload.file_path,
+        mime_type=payload.mime_type,
+        prescription_id=payload.prescription_id,
+    )
+    return DriveUploadResponse(
+        patient_id=payload.patient_id,
+        file_id=result["id"],
+        file_name=result["name"],
+        web_view_link=result.get("webViewLink"),
+        prescription_id=payload.prescription_id,
+    )
+
+
+@router.post("/calendar/events", response_model=CalendarEventResponse)
+def create_calendar_event(payload: CalendarEventRequest, db: Session = Depends(get_db)) -> CalendarEventResponse:
+    result = orchestrator.integrations.create_calendar_event(
+        db=db,
+        patient_id=payload.patient_id,
+        summary=payload.summary,
+        minutes_from_now=payload.minutes_from_now,
+        duration_minutes=payload.duration_minutes,
+        escalation_case_id=payload.escalation_case_id,
+    )
+    return CalendarEventResponse(
+        patient_id=payload.patient_id,
+        event_id=result["id"],
+        html_link=result.get("htmlLink"),
+        escalation_case_id=payload.escalation_case_id,
+    )
+
+
+@router.post("/drug/label", response_model=DrugLabelResponse)
+def lookup_drug_label(payload: DrugLabelRequest) -> DrugLabelResponse:
+    result = orchestrator.integrations.lookup_drug_label(payload.medication_name)
+    return DrugLabelResponse(**result)
+
+
+@router.post("/pharmacy/search", response_model=PharmacySearchResponse)
+def pharmacy_search(payload: PharmacySearchRequest) -> PharmacySearchResponse:
+    result = orchestrator.integrations.search_nearby_pharmacies(payload.location_query)
+    return PharmacySearchResponse(**result)
+
+
+@router.get("/orchestration/check-in/{patient_id}", response_model=DailyCheckInResponse)
+def orchestration_checkin(patient_id: int) -> DailyCheckInResponse:
+    result = orchestrator.build_daily_checkin(patient_id)
+    return DailyCheckInResponse(
+        patient_id=patient_id,
+        profile=result["profile"],
+        conditions=result["conditions"],
+        routine_tasks=result["routine_tasks"],
+        message=result["message"],
+    )
+
+
+@router.get("/orchestration/routine/{patient_id}", response_model=RoutineSnapshotResponse)
+def orchestration_routine(patient_id: int) -> RoutineSnapshotResponse:
+    _ = patient_id
+    tasks = orchestrator.routine.get_daily_routine()
+    return RoutineSnapshotResponse(patient_id=patient_id, tasks=[task.__dict__ for task in tasks])
+
+
+@router.post("/orchestration/hitl-report", response_model=HitlReportResponse)
+def orchestration_hitl_report(payload: HitlReportRequest, db: Session = Depends(get_db)) -> HitlReportResponse:
+    report = orchestrator.hitl.build_detailed_report(db, payload.patient_id, payload.context_summary)
+    case_id = None
+    external_ticket_id = None
+    external_ticket_url = None
+    if payload.create_case:
+        case = orchestrator.hitl.create_case(db, payload.patient_id, payload.case_type, report)
+        case_id = case.id
+        external_ticket_id = case.external_ticket_id
+        external_ticket_url = case.external_ticket_url
+
+    return HitlReportResponse(
+        patient_id=payload.patient_id,
+        report=report,
+        case_id=case_id,
+        external_ticket_id=external_ticket_id,
+        external_ticket_url=external_ticket_url,
+    )
+
+
+@router.post("/orchestration/diet-support", response_model=DietSupportResponse)
+def orchestration_diet_support(payload: DietSupportRequest) -> DietSupportResponse:
+    result = orchestrator.build_diet_and_pharmacy_support(
+        patient_id=payload.patient_id,
+        medication_name=payload.medication_name,
+        location_query=payload.location_query,
+    )
+    return DietSupportResponse(
+        patient_id=payload.patient_id,
+        conditions=result["conditions"],
+        diet_plan=result["diet_plan"],
+        pharmacy_result=result["pharmacy_result"],
+    )
+
+
+@router.post("/orchestration/document-pipeline", response_model=DocumentPipelineResponse)
+def orchestration_document_pipeline(payload: DocumentPipelineRequest) -> DocumentPipelineResponse:
+    result = orchestrator.build_document_pipeline(
+        patient_id=payload.patient_id,
+        file_path=payload.file_path,
+        raw_text_hint=payload.raw_text_hint,
+        prescription_id=payload.prescription_id,
+    )
+    return DocumentPipelineResponse(**result)
+
+
+@router.post("/orchestration/run-document-flow", response_model=DocumentFlowResponse)
+def orchestration_run_document_flow(payload: DocumentFlowRequest, db: Session = Depends(get_db)) -> DocumentFlowResponse:
+    result = orchestrator.run_document_intake_flow(
+        db=db,
+        patient_id=payload.patient_id,
+        image_reference=payload.image_reference,
+        raw_text_hint=payload.raw_text_hint,
+        document_file_path=payload.document_file_path,
+        pharmacy_location_query=payload.pharmacy_location_query,
+        create_calendar_event=payload.create_calendar_event,
+    )
+    return DocumentFlowResponse(**result)
+
+
+@router.post("/orchestration/conversation-route", response_model=ConversationRoutingResponse)
+def orchestration_conversation_route(payload: ConversationRoutingRequest) -> ConversationRoutingResponse:
+    result = orchestrator.route_conversation(patient_id=payload.patient_id, message=payload.message)
+    return ConversationRoutingResponse(**result)
+
+
+@router.post("/orchestration/medical-route", response_model=MedicalRoutingResponse)
+def orchestration_medical_route(payload: MedicalRoutingRequest) -> MedicalRoutingResponse:
+    result = orchestrator.route_medical_input(
+        patient_id=payload.patient_id,
+        query_text=payload.query_text,
+        file_path=payload.file_path,
+    )
+    return MedicalRoutingResponse(**result)
+
+
+@router.post("/medical-memory/store", response_model=MedicalMemoryStoreResponse)
+def medical_memory_store(payload: MedicalMemoryStoreRequest, db: Session = Depends(get_db)) -> MedicalMemoryStoreResponse:
+    result = orchestrator.store_medical_memory(
+        db=db,
+        patient_id=payload.patient_id,
+        source_type=payload.source_type,
+        query_text=payload.query_text,
+        file_path=payload.file_path,
+        drive_file_id=payload.drive_file_id,
+        drive_file_url=payload.drive_file_url,
+        use_live_embedding=payload.use_live_embedding,
+        metadata=payload.metadata,
+    )
+    return MedicalMemoryStoreResponse(**result)
+
+
+@router.post("/medical-memory/search", response_model=MedicalMemorySearchResponse)
+def medical_memory_search(payload: MedicalMemorySearchRequest, db: Session = Depends(get_db)) -> MedicalMemorySearchResponse:
+    result = orchestrator.search_medical_memory(
+        db=db,
+        patient_id=payload.patient_id,
+        query_text=payload.query_text,
+        modality=payload.modality,
+        limit=payload.limit,
+    )
+    return MedicalMemorySearchResponse(**result)
+
+
+@router.get("/orchestration/routine-automation/{patient_id}", response_model=RoutineAutomationResponse)
+def orchestration_routine_automation(patient_id: int, db: Session = Depends(get_db)) -> RoutineAutomationResponse:
+    result = orchestrator.run_routine_automation(db=db, patient_id=patient_id)
+    return RoutineAutomationResponse(**result)
+
+
+@router.post("/medical-models/medgemma", response_model=MedGemmaResponse)
+def medgemma_run(payload: MedGemmaRequest) -> MedGemmaResponse:
+    result = orchestrator.run_medgemma(
+        patient_id=payload.patient_id,
+        prompt=payload.prompt,
+        image_path=payload.image_path,
+        max_new_tokens=payload.max_new_tokens,
+    )
+    return MedGemmaResponse(**result)
+
+
+@router.post("/medical-models/medsiglip/classify", response_model=MedSigLIPClassificationResponse)
+def medsiglip_classify(payload: MedSigLIPClassificationRequest) -> MedSigLIPClassificationResponse:
+    result = orchestrator.run_medsiglip_classification(
+        patient_id=payload.patient_id,
+        image_path=payload.image_path,
+        candidate_labels=payload.candidate_labels,
+    )
+    return MedSigLIPClassificationResponse(**result)
+
+
+@router.get("/orchestration/manifest/{patient_id}", response_model=OrchestrationManifestResponse)
+def orchestration_manifest(patient_id: int) -> OrchestrationManifestResponse:
+    result = orchestrator.get_orchestration_manifest(patient_id)
+    return OrchestrationManifestResponse(**result)
