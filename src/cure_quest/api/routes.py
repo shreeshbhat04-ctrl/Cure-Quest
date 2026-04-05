@@ -313,6 +313,7 @@ def upload_document(payload: DriveUploadRequest, db: Session = Depends(get_db)) 
         file_name=result["name"],
         web_view_link=result.get("webViewLink"),
         prescription_id=payload.prescription_id,
+        image_category=result.get("image_category"),
     )
 
 

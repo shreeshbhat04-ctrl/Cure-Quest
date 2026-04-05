@@ -38,12 +38,12 @@ class BrainService:
 
     def healthcheck(self, db: Session) -> dict[str, str]:
         db.execute(text("SELECT 1"))
-        provider = "alloydb_or_postgres" if self.settings.database_url.startswith("postgresql") else "sqlite"
+        provider = "alloydb_or_postgres" if self.settings.resolved_database_url.startswith("postgresql") else "sqlite"
         return {
             "status": "ok",
             "provider": provider,
             "gateway_mode": self.settings.brain_gateway_mode,
-            "database_url_hint": self.settings.database_url.split("://", 1)[0],
+            "database_url_hint": self.settings.database_backend_hint,
         }
 
     def get_patient_profile(self, db: Session, patient_id: int) -> BrainPatientProfile | None:

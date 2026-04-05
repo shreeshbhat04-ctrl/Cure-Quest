@@ -1,7 +1,6 @@
 from pathlib import Path
 import sys
 
-
 repo_root = Path(__file__).resolve().parents[2]
 src_path = repo_root / "src"
 

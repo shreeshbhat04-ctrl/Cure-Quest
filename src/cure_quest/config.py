@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,9 @@ class Settings(BaseSettings):
     alloydb_region: str | None = None
     alloydb_cluster: str | None = None
     alloydb_instance: str | None = None
+    alloydb_use_auth_proxy: bool = False
+    alloydb_auth_proxy_host: str = "127.0.0.1"
+    alloydb_auth_proxy_port: int = 5432
     alloydb_database: str = "cure_quest"
     alloydb_user: str | None = None
     alloydb_password: str | None = None
@@ -36,6 +40,7 @@ class Settings(BaseSettings):
     google_drive_token_file: str = "credentials/google_drive_token.json"
     google_calendar_token_file: str = "credentials/google_calendar_token.json"
     google_drive_folder_id: str | None = None
+    google_drive_classification_enabled: bool = True
     google_calendar_id: str = "primary"
     bigquery_project_id: str | None = None
     bigquery_dataset_id: str = "cure_quest"
@@ -64,6 +69,35 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def alloydb_instance_uri(self) -> str | None:
+        if not all([self.alloydb_project, self.alloydb_region, self.alloydb_cluster, self.alloydb_instance]):
+            return None
+        return (
+            f"projects/{self.alloydb_project}/locations/{self.alloydb_region}/"
+            f"clusters/{self.alloydb_cluster}/instances/{self.alloydb_instance}"
+        )
+
+    @property
+    def resolved_database_url(self) -> str:
+        if (
+            self.alloydb_use_auth_proxy
+            and self.alloydb_user
+            and self.alloydb_password is not None
+            and self.alloydb_database
+        ):
+            quoted_user = quote(self.alloydb_user, safe="")
+            quoted_password = quote(self.alloydb_password, safe="")
+            return (
+                f"postgresql+psycopg://{quoted_user}:{quoted_password}"
+                f"@{self.alloydb_auth_proxy_host}:{self.alloydb_auth_proxy_port}/{self.alloydb_database}"
+            )
+        return self.database_url
+
+    @property
+    def database_backend_hint(self) -> str:
+        return self.resolved_database_url.split("://", 1)[0]
 
 
 @lru_cache

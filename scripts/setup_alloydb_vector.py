@@ -8,7 +8,10 @@ from cure_quest.db.session import engine
 
 def main() -> None:
     settings = get_settings()
-    result = {"database_url_hint": engine.dialect.name, "vector_table": settings.medical_vector_table_name}
+    result = {
+        "database_url_hint": settings.database_backend_hint,
+        "vector_table": settings.medical_vector_table_name,
+    }
     with engine.begin() as connection:
         if engine.dialect.name != "postgresql":
             result["ready"] = False

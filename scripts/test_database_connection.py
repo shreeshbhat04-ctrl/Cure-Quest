@@ -10,7 +10,7 @@ def main() -> None:
     init_database()
     with SessionLocal() as db:
         db.execute(text("SELECT 1"))
-    print("DATABASE", settings.database_url)
+    print("DATABASE", settings.resolved_database_url)
     print("BRAIN_GATEWAY_MODE", settings.brain_gateway_mode)
     print("STATUS ok")
 

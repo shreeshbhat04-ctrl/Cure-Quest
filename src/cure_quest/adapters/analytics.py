@@ -71,7 +71,8 @@ class BigQueryAnalyticsAdapter:
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
         ]
-        errors = client.insert_rows_json(table_id, rows)
+        table = client.get_table(table_id)
+        errors = client.insert_rows(table=table, rows=rows)
         if errors:
             return {
                 "logged": False,

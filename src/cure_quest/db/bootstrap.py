@@ -2,6 +2,7 @@ from sqlalchemy import inspect, text
 
 from cure_quest.config import get_settings
 from cure_quest.db.session import Base, engine
+import cure_quest.db.models  # noqa
 
 
 def init_database() -> None:

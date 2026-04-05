@@ -132,6 +132,7 @@ If `use_live_embedding=true` is passed to `/medical-memory/store`, the app will 
 - `python scripts/setup_bigquery_table.py`
 - `python scripts/test_bigquery_logging.py`
 - `python scripts/setup_alloydb_vector.py`
+- `python scripts/print_alloydb_proxy_command.py`
 
 These helpers prepare the analytics table and pgvector-compatible storage when your environment is pointed at BigQuery and AlloyDB/Postgres.
 
@@ -149,6 +150,27 @@ Set `BRAIN_GATEWAY_MODE=mcp` in `.env` when you want the full transport path.
 - The current schema is Postgres-compatible and can be pointed at AlloyDB through `DATABASE_URL`.
 - A starter MCP Toolbox config lives at `toolbox/tools.yaml.example`.
 - For a real AlloyDB setup, create the database first, then set `DATABASE_URL=postgresql+psycopg://...` and rerun the smoke tests.
+- If you use AlloyDB Auth Proxy, set:
+
+```env
+ALLOYDB_PROJECT=your-gcp-project
+ALLOYDB_REGION=us-central1
+ALLOYDB_CLUSTER=your-cluster
+ALLOYDB_INSTANCE=your-instance
+ALLOYDB_USE_AUTH_PROXY=true
+ALLOYDB_AUTH_PROXY_HOST=127.0.0.1
+ALLOYDB_AUTH_PROXY_PORT=5432
+ALLOYDB_DATABASE=curequest
+ALLOYDB_USER=postgres
+ALLOYDB_PASSWORD=your-password
+```
+
+- Then run `python scripts/print_alloydb_proxy_command.py`, start the proxy in a separate terminal, and rerun:
+
+```powershell
+python scripts/test_database_connection.py
+python scripts/setup_alloydb_vector.py
+```
 
 ## Project layout
 

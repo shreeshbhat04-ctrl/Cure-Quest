@@ -120,6 +120,7 @@ class DriveUploadResponse(BaseModel):
     file_name: str
     web_view_link: str | None = None
     prescription_id: int | None = None
+    image_category: str | None = None
 
 
 class CalendarEventRequest(BaseModel):

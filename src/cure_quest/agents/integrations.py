@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import time
@@ -10,6 +11,9 @@ from cure_quest.adapters.openfda import OpenFDAAdapter
 from cure_quest.adapters.pharmacy import PharmacySearchAdapter
 from cure_quest.db.models import EscalationCase, Prescription
 from cure_quest.services.huggingface_medical import HuggingFaceMedicalService
+from cure_quest.services.image_classifier import ImageClassifierService, CATEGORY_FOLDER_MAP
+
+logger = logging.getLogger(__name__)
 
 
 class IntegrationAgent:
@@ -21,6 +25,7 @@ class IntegrationAgent:
         self.pharmacy = PharmacySearchAdapter()
         self.medical_memory = MedicalMemoryAdapter()
         self.huggingface_medical = HuggingFaceMedicalService()
+        self.image_classifier = ImageClassifierService()
 
     def _with_retry(self, fn, *args, **kwargs):
         attempts = max(1, self.drive.settings.integration_max_retries + 1)
@@ -45,7 +50,41 @@ class IntegrationAgent:
         prescription_id: int | None = None,
     ) -> dict:
         _ = patient_id
-        result = self._with_retry(self.drive.upload_file, file_path=file_path, mime_type=mime_type)
+        settings = self.drive.settings
+
+        # --- AI-powered image classification & subfolder routing ---
+        image_category: str | None = None
+        target_folder_id: str | None = None
+
+        if settings.google_drive_classification_enabled and settings.google_drive_folder_id:
+            image_category = self.image_classifier.classify_medical_image(file_path)
+            subfolder_name = CATEGORY_FOLDER_MAP.get(image_category, "Other")
+            logger.info(
+                "Image classified as %s → routing to subfolder '%s'",
+                image_category,
+                subfolder_name,
+            )
+            try:
+                target_folder_id = self._with_retry(
+                    self.drive.get_or_create_subfolder,
+                    parent_folder_id=settings.google_drive_folder_id,
+                    folder_name=subfolder_name,
+                )
+            except Exception:
+                logger.exception("Failed to resolve subfolder — uploading to root folder")
+                target_folder_id = None
+
+        result = self._with_retry(
+            self.drive.upload_file,
+            file_path=file_path,
+            mime_type=mime_type,
+            folder_id=target_folder_id,
+        )
+
+        # Attach the classification result to the response.
+        if image_category:
+            result["image_category"] = image_category
+
         if prescription_id is not None:
             prescription = db.scalar(select(Prescription).where(Prescription.id == prescription_id))
             if prescription is not None:
