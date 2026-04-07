@@ -23,6 +23,8 @@ dependencies = [
   "jinja2>=3.1",
   "google-adk",
   "mcp[cli]",
+  "google-cloud-speech>=2.21.0",
+  "google-cloud-texttospeech>=2.16.0",
 ]
 
 [project.optional-dependencies]

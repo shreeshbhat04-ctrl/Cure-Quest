@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Bell, Grid2X2, Map, Pill, History, Sparkles } from 'lucide-react';
+import { Bell, Brain, Grid2X2, Map, Pill, History, Sparkles } from 'lucide-react';
 
-type TabId = 'dashboard' | 'care-maze' | 'medications' | 'history';
+type TabId = 'dashboard' | 'care-maze' | 'medications' | 'hitl' | 'history';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,6 +25,7 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'dashboard', icon: Grid2X2, label: 'Dashboard' },
     { id: 'care-maze', icon: Map, label: 'Care Maze' },
     { id: 'medications', icon: Pill, label: 'Meds' },
+    { id: 'hitl', icon: Brain, label: 'HITL' },
     { id: 'history', icon: History, label: 'History' },
   ];
 

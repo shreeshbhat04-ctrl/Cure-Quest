@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { FileSearch, Microscope, PillBottle, ShieldAlert } from 'lucide-react';
+import { FileSearch, Microscope, PillBottle, ShieldAlert, Upload, CheckCircle2, Loader2 } from 'lucide-react';
 import {
   checkAlternatives,
   fetchDrugLabel,
+  uploadDocumentFile,
   type AlternativeResponse,
+  type DocumentUploadResponse,
   type DrugLabelResponse,
   type WorkspacePayload,
 } from '../lib/api';
@@ -25,16 +27,23 @@ export function MedicationHubScreen({
   const [medicationName, setMedicationName] = useState(seededMedication);
   const [alternativeResult, setAlternativeResult] = useState<AlternativeResponse | null>(null);
   const [drugLabel, setDrugLabel] = useState<DrugLabelResponse | null>(null);
-  const [documentPath, setDocumentPath] = useState('docs/CONNECTION_ARCHITECTURE.md');
   const [busy, setBusy] = useState<'alternatives' | 'label' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // File upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const latestPrescription = workspace?.prescriptions[0] ?? null;
   const triggerManifest = workspace?.manifest.trigger_manifest ?? {};
 
   const documentRouteSummary = useMemo(() => {
-    const lower = documentPath.toLowerCase();
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+    const name = selectedFile?.name?.toLowerCase() ?? '';
+    if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')) {
       return {
         route: 'medical_image',
         models: ['google/medsiglip-448', 'google/medgemma-1.5-4b-it'],
@@ -44,7 +53,7 @@ export function MedicationHubScreen({
       route: 'document_or_text',
       models: ['google/medgemma-1.5-4b-it'],
     };
-  }, [documentPath]);
+  }, [selectedFile]);
 
   if (loading && !workspace) return <LoadingState />;
   if (!workspace) return <EmptyState title="No medication context yet" description="Seed or create a patient before opening the medication hub." />;
@@ -73,6 +82,33 @@ export function MedicationHubScreen({
     } finally {
       setBusy(null);
     }
+  };
+
+  const handleFileSelect = (file: File) => {
+    setSelectedFile(file);
+    setUploadResult(null);
+    setUploadError(null);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    try {
+      setUploading(true);
+      setUploadError(null);
+      const result = await uploadDocumentFile(patientId, selectedFile);
+      setUploadResult(result);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelect(file);
   };
 
   return (
@@ -173,27 +209,101 @@ export function MedicationHubScreen({
           )}
         </SoftCard>
 
+        {/* Document Upload Card */}
         <SoftCard>
           <div className="flex items-center gap-3 text-primary">
             <FileSearch className="h-5 w-5" />
-            <h3 className="font-serif text-2xl">Document routing preview</h3>
+            <h3 className="font-serif text-2xl">Upload document</h3>
           </div>
           <div className="mt-5 space-y-4">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-on-surface/60">Document or image path</span>
-              <input value={documentPath} onChange={(e) => setDocumentPath(e.target.value)} className="input-shell" />
-            </label>
-            <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4">
-              <p className="text-sm uppercase tracking-[0.18em] text-primary/65">Expected route</p>
-              <p className="mt-2 font-medium">{documentRouteSummary.route}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {documentRouteSummary.models.map((model) => (
-                  <span key={model}>
-                    <Pill>{model}</Pill>
-                  </span>
-                ))}
+            {/* Drop Zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center gap-3 rounded-[1.75rem] border-2 border-dashed px-6 py-10 transition-all duration-200 ${
+                isDragOver
+                  ? 'border-primary bg-primary-fixed/20'
+                  : 'border-outline-variant/40 bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-high/60'
+              }`}
+            >
+              <Upload className={`h-8 w-8 ${isDragOver ? 'text-primary' : 'text-on-surface/35'}`} />
+              <div className="text-center">
+                <p className="text-[0.95rem] font-medium text-on-surface/70">
+                  {selectedFile ? selectedFile.name : 'Drop a file here or click to browse'}
+                </p>
+                <p className="mt-1 text-[0.82rem] text-on-surface/40">
+                  Prescriptions, lab reports, symptom photos
+                </p>
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf,.doc,.docx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                }}
+              />
             </div>
+
+            {/* Selected File Preview */}
+            {selectedFile && (
+              <div className="space-y-3">
+                <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4">
+                  <p className="text-sm uppercase tracking-[0.18em] text-primary/65">Expected route</p>
+                  <p className="mt-2 font-medium">{documentRouteSummary.route}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {documentRouteSummary.models.map((model) => (
+                      <span key={model}>
+                        <Pill>{model}</Pill>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  className="river-stone-btn w-full bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface"
+                >
+                  {uploading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Uploading & classifying...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <Upload className="h-4 w-4" /> Upload to Google Drive
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <div className="rounded-[1.5rem] bg-primary-fixed/30 px-5 py-4">
+                <div className="flex items-center gap-2 text-primary">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <p className="font-medium">Uploaded successfully!</p>
+                </div>
+                <div className="mt-3 space-y-1 text-sm text-on-surface/65">
+                  <p>File: {uploadResult.file_name}</p>
+                  {uploadResult.image_category && <p>AI Category: <Pill tone="sage">{uploadResult.image_category}</Pill></p>}
+                  {uploadResult.web_view_link && (
+                    <a href={uploadResult.web_view_link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-primary hover:underline">
+                      Open in Google Drive →
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {uploadError && (
+              <p className="rounded-[1.25rem] bg-secondary-container/30 px-4 py-3 text-sm leading-7 text-secondary">{uploadError}</p>
+            )}
+
             <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4">
               <p className="text-sm uppercase tracking-[0.18em] text-tertiary/70">Trigger memory</p>
               <p className="mt-2 text-sm leading-7 text-on-surface/60">

@@ -6,9 +6,11 @@ import time
 from cure_quest.adapters.analytics import BigQueryAnalyticsAdapter
 from cure_quest.adapters.calendar import GoogleCalendarAdapter
 from cure_quest.adapters.drive import GoogleDriveAdapter
+from cure_quest.adapters.gmail import GoogleGmailAdapter
 from cure_quest.adapters.medical_memory import MedicalMemoryAdapter
 from cure_quest.adapters.openfda import OpenFDAAdapter
 from cure_quest.adapters.pharmacy import PharmacySearchAdapter
+from cure_quest.adapters.speech import GoogleSpeechAdapter
 from cure_quest.db.models import EscalationCase, Prescription
 from cure_quest.services.huggingface_medical import HuggingFaceMedicalService
 from cure_quest.services.image_classifier import ImageClassifierService, CATEGORY_FOLDER_MAP
@@ -20,12 +22,14 @@ class IntegrationAgent:
     def __init__(self) -> None:
         self.drive = GoogleDriveAdapter()
         self.calendar = GoogleCalendarAdapter()
+        self.gmail = GoogleGmailAdapter()
         self.analytics = BigQueryAnalyticsAdapter()
         self.openfda = OpenFDAAdapter()
         self.pharmacy = PharmacySearchAdapter()
         self.medical_memory = MedicalMemoryAdapter()
         self.huggingface_medical = HuggingFaceMedicalService()
         self.image_classifier = ImageClassifierService()
+        self.speech = GoogleSpeechAdapter()
 
     def _with_retry(self, fn, *args, **kwargs):
         attempts = max(1, self.drive.settings.integration_max_retries + 1)
@@ -214,5 +218,46 @@ class IntegrationAgent:
             candidate_labels=candidate_labels,
         )
 
+    def transcribe_audio(self, audio_bytes: bytes) -> dict:
+        try:
+            transcript = self._with_retry(self.speech.transcribe_audio, audio_bytes=audio_bytes)
+            return {"transcript": transcript, "error": None}
+        except Exception as error:
+            logger.error("Audio transcription failed: %s", error)
+            return {"transcript": None, "error": str(error)}
+
+    def synthesize_speech(self, text: str) -> dict:
+        try:
+            audio_bytes = self._with_retry(self.speech.synthesize_speech, text=text)
+            return {"audio_bytes": audio_bytes, "error": None}
+        except Exception as error:
+            logger.error("Speech synthesis failed: %s", error)
+            return {"audio_bytes": None, "error": str(error)}
+
     def ensure_bigquery_table(self) -> dict:
         return self.analytics.ensure_table()
+
+    def list_health_emails(self, credentials=None, max_results: int = 5) -> list[dict]:
+        try:
+            return self._with_retry(
+                self.gmail.list_recent_health_emails,
+                credentials=credentials,
+                max_results=max_results,
+            )
+        except Exception as error:
+            logger.error("Gmail list failed: %s", error)
+            return []
+
+    def send_care_email(self, to: str, subject: str, body_html: str, credentials=None) -> dict:
+        try:
+            return self._with_retry(
+                self.gmail.send_care_summary,
+                to=to,
+                subject=subject,
+                body_html=body_html,
+                credentials=credentials,
+            )
+        except Exception as error:
+            logger.error("Gmail send failed: %s", error)
+            return {"sent": False, "message_id": None, "error": str(error)}
+

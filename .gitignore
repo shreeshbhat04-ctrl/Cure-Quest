@@ -1,23 +1,42 @@
+# Virtual environment
 .venv/
+
+# Python
 __pycache__/
-.pytest_cache/
-.mypy_cache/
-.tmp/
-pytest-cache-files-*/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
+pytest-cache-files-*/
+.coverage
+htmlcov/
+
+# Temp
+.tmp/
+
+# Databases
 *.db
+
+# Environment
 .env
+frontend/.env
+frontend/.env.local
+
+# Build artifacts
 dist/
 build/
 frontend/node_modules/
 frontend/dist/
-frontend/.env.local
-.coverage
-htmlcov/
-/credentials/google_calendar_credentials.json
-/credentials/google_oauth_credentials.json
-/credentials/google_drive_credentials.json
-/credentials/client_secret_315569715049-cderasb8vf2pac410njjps1u4rueafi8.apps.googleusercontent.com.json
+
+# Credentials (NEVER commit)
 /credentials/*.json
+
+# Runtime artifacts
+proxy_log.txt
+test_output.txt
+alloydb-auth-proxy-x64.exe
+
+# IDE
+.vscode/
+.idea/

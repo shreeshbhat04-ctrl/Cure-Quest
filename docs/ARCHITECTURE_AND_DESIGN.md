@@ -1,0 +1,367 @@
+# Cure-Quest Architecture and Design Documentation
+
+This document defines the production-intent architecture for Cure-Quest, including system boundaries, agent responsibilities, integration contracts, and operational guidance.
+
+It complements:
+
+- [CONNECTION_ARCHITECTURE.md](CONNECTION_ARCHITECTURE.md) for infrastructure connection paths
+- [WIRING_CHECKLIST.md](WIRING_CHECKLIST.md) for practical setup and validation steps
+- [DESIGN.md](../DESIGN.md) for frontend visual system and UX language
+
+## How to Use This Document
+
+Use this reading order based on role:
+
+- Product and engineering leads: Sections 1, 2, 3, 9, 13, 14
+- Backend engineers: Sections 4, 5, 6, 7, 8, 10, 11, 12
+- Frontend engineers and designers: Sections 3, 5, 6, 16
+- QA and reliability: Sections 7, 10, 11, 12, 13
+
+## 1. Executive Summary
+
+Cure-Quest is a multi-agent healthcare assistant platform built around:
+
+- React frontend experiences (chat, voice, medication workflows, history)
+- FastAPI backend APIs and orchestration routes
+- A central Orchestrator that routes tasks to specialist agents and services
+- A shared patient brain backed by SQLAlchemy and AlloyDB/Postgres-compatible storage
+- External integrations (Google Workspace, Speech, OpenFDA, BigQuery, Asana, medical models)
+
+Design goals:
+
+- Safe and explainable chronic care assistance
+- Fast multimodal interactions (text, voice, document upload)
+- Human-in-the-loop escalation to clinicians
+- Modular integrations with explicit tool and service boundaries
+
+## 2. Architecture Principles
+
+1. Orchestrator-first coordination
+The Orchestrator owns intent analysis, delegation, and response composition.
+
+2. Shared patient context
+All runtime paths read and write to a consistent patient state model.
+
+3. Integration isolation
+External providers are accessed through adapters or tool boundaries to reduce blast radius.
+
+4. Progressive reliability
+Develop in direct mode first, then validate MCP mode and full agent tool routing.
+
+5. Human oversight for risk
+High-risk outputs must support HITL workflows and traceable audit logs.
+
+## 3. High-Level System Architecture
+
+```mermaid
+graph TD
+    %% Frontend Layer
+    subgraph Frontend [React Frontend Suite]
+        UI[User Interface]
+        Voice[Voice Assistant Native Mic/Audio]
+        Chat[Chat Assistant Pop-up]
+        UI --> Voice
+        UI --> Chat
+    end
+
+    %% Backend API Layer
+    subgraph FastAPI [Backend Application]
+        Routes[API Routes: /orchestration/*]
+    end
+
+    %% Orchestration Layer
+    subgraph OrchestratorLayer [Multi-Agent Orchestrator]
+        Orchestrator((Orchestrator Agent))
+        ModelRouter[Model Routing Service]
+        CommAgent[Communications Agent]
+        IntegAgent[Integrations Agent]
+    end
+
+    %% Data & External Services Layer
+    subgraph ExternalServices [External Integrations and Data]
+        Brain[(AlloyDB or Postgres via Brain Gateway)]
+        FDA[OpenFDA Service]
+        Speech[Google Cloud STT and TTS]
+        Drive[Google Workspace Drive and Calendar]
+        BigQuery[(BigQuery Analytics)]
+        HF[HuggingFace Medical Models]
+        Gemini[Google Gemini and MedGemma]
+    end
+
+    %% Flow Connections
+    Voice <--> |Audio WebM or JSON Payload| Routes
+    Chat <--> |Text or JSON Payload| Routes
+
+    Routes <--> |Route and Execute| Orchestrator
+
+    Orchestrator --> |Query Patient State| Brain
+    Orchestrator --> |Analyze Intent| ModelRouter
+    Orchestrator <--> |Compose Reply| CommAgent
+    Orchestrator <--> |Execute Tool or Tasks| IntegAgent
+
+    CommAgent --> |Generate Conversational Output| Gemini
+
+    IntegAgent --> |Transcription and Synthesis| Speech
+    IntegAgent --> |Fetch and Upload Files| Drive
+    IntegAgent --> |Check Drug Stock and Labels| FDA
+    IntegAgent --> |Log Audit Trails| BigQuery
+    IntegAgent --> |Embeddings and Vision| HF
+```
+
+## 4. Runtime Components and Ownership
+
+### Frontend
+
+- Hosts patient-facing workflows (dashboard, care maze, medication hub, HITL views)
+- Captures voice input and file uploads
+- Calls backend APIs through typed request models
+
+### FastAPI API Layer
+
+- Exposes bounded endpoints under patient, orchestration, documents, and integrations domains
+- Validates payloads, manages auth/session context, and normalizes responses
+- Delegates business logic to services and agents
+
+### Orchestrator and Specialist Agents
+
+- Orchestrator: intent routing, state-aware planning, and response synthesis
+- Communications Agent: empathetic patient-facing language generation
+- Integrations Agent: tool and provider orchestration across speech, calendar, drive, and analytics
+- HITL Agent: clinician handoff packaging, report generation, escalation metadata
+
+### Brain and Database Layer
+
+- Shared patient memory model across API and tool-driven paths
+- SQLAlchemy-based persistence with Postgres-compatible schema
+- Supports direct access mode and MCP-mediated access mode
+
+### Tool and Agent Runtime (ADK and MCP)
+
+- ADK package for agent web testing and tool invocation
+- Local MCP server exposing deterministic tools and DB-backed operations
+- Enables contract testing independent of frontend flow
+
+## 5. Core Interaction Flow: Voice Care Journey
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Patient
+    participant VoiceUI as Voice Assistant (React)
+    participant API as FastAPI Router
+    participant Orchestrator as Agent Orchestrator
+    participant Brain as Backend DB (AlloyDB)
+    participant Integrations as Integration Services
+    participant LLM as Gemini or MedGemma
+
+    Patient->>VoiceUI: Speaks into microphone
+    Note right of VoiceUI: Records audio as WebM
+    VoiceUI->>API: POST /orchestration/voice-route (audio blob)
+
+    API->>Integrations: Transcribe audio with STT
+    Integrations-->>API: Transcript text
+
+    API->>Orchestrator: route_conversation(transcript)
+    Orchestrator->>Brain: Fetch profile and medical history
+    Brain-->>Orchestrator: Demographics, conditions, prescriptions
+
+    Orchestrator->>LLM: Generate response with context
+    LLM-->>Orchestrator: Grounded response text
+
+    Orchestrator->>Integrations: synthesize_speech(response_text)
+    Integrations-->>Orchestrator: MP3 audio bytes
+
+    Orchestrator-->>API: Conversation payload and audio
+    API-->>VoiceUI: JSON response
+    VoiceUI-->>Patient: Plays audio and renders response text
+```
+
+## 6. Core Interaction Flow: Document and HITL Journey
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Patient
+    participant MedUI as Medication UI (React)
+    participant API as FastAPI Router
+    participant Vision as Medical Vision Service
+    participant Drive as Google Drive
+    participant Orchestrator as HITL Agent Orchestrator
+    participant Doctor as Clinician
+
+    Patient->>MedUI: Uploads prescription image
+    MedUI->>API: POST /documents/upload-file
+    API->>Vision: Classify and extract medication context
+    Vision-->>API: Label and confidence metadata
+    API->>Drive: Store document in patient folder
+    Drive-->>API: Drive file id and URL
+    API-->>MedUI: Upload and analysis result
+
+    MedUI->>API: POST /orchestration/hitl-report
+    API->>Orchestrator: Build clinician review packet
+    Orchestrator-->>API: Summary, risks, recommendations
+    API-->>MedUI: Structured HITL report
+    MedUI-->>Doctor: Sends report via approved channel
+```
+
+## 7. Integration Matrix
+
+| Integration | Primary Purpose | Entry Point | Failure Mode Handling |
+|---|---|---|---|
+| Google STT and TTS | Voice transcription and synthesis | Orchestration voice routes | Return text-only fallback when audio generation fails |
+| Google Drive and Calendar | File storage and reminder scheduling | Documents and reminders APIs | Persist partial success and surface next action to user |
+| Gmail | Care summary delivery | Notification or summary APIs | Queue retry with error metadata |
+| OpenFDA | Drug label and safety data | Drug endpoints and alternatives checks | Return constrained guidance with source unavailability note |
+| BigQuery | Audit and event analytics | Integration logging service | Non-blocking fire-and-forget with retry path |
+| Asana | Escalation and tasking | Ticketing adapter | Local escalation record if remote ticketing fails |
+| Gemini and MedGemma | Conversation and clinical reasoning support | Model router and communication flows | Route to backup model policy and log trace |
+| HuggingFace models | Vision and embedding workflows | Document and retrieval services | Degrade to rules-based extraction if model unavailable |
+
+## 8. API Capability Map
+
+This map links major user capabilities to backend route groups.
+
+| Capability | Route Group | Representative Endpoints |
+|---|---|---|
+| Patient intake and profile bootstrap | Patient APIs | /patient/intake, /demo/patient/{patient_id}/workspace |
+| Text and voice conversation | Orchestration APIs | /orchestration/conversation-route, /orchestration/voice-route |
+| Medication safety checks | Medical and patient APIs | /drug/label, /patient/check-alternatives |
+| Document ingestion and classification | Document APIs | /documents/upload-file |
+| HITL report generation | Orchestration APIs | /orchestration/hitl-report, /orchestration/hitl-comprehension |
+| Reminders and scheduling | Patient and calendar APIs | /patient/reminders, /calendar/events |
+| Workspace and communications sync | Auth and Gmail APIs | /auth/google, /auth/google/status/{patient_id}, /gmail/* |
+
+## 9. Data Domains
+
+Key persistent entities include:
+
+- patients
+- chronic_conditions
+- prescriptions
+- medication_events
+- escalation_cases
+- notifications
+
+Design intent:
+
+- keep patient identity, care context, and event history normalized
+- ensure all agent outputs can be tied to durable patient records
+- preserve traceability for escalations and external side effects
+
+## 10. Deployment Topology (Environment Progression)
+
+### Local development
+
+- Frontend via Vite
+- API via Uvicorn
+- SQLite or local Postgres-compatible URL
+- Optional local MCP server for tool contract tests
+
+### Integration environment
+
+- AlloyDB-backed persistence
+- Real Google API credentials and scoped service calls
+- ADK and MCP enabled for full tool route validation
+
+### Production intent
+
+- Managed FastAPI runtime behind HTTPS ingress
+- AlloyDB with private networking and credential rotation
+- Structured logging and analytics sinks enabled
+- Strict access controls on PHI-bearing workflows
+
+## 11. Security, Privacy, and Compliance Guardrails
+
+- Minimize protected data movement; pass only required fields to external providers
+- Separate patient identifiers from non-essential analytical payloads
+- Log access, tool calls, and escalation actions with timestamps and actor context
+- Enforce principle of least privilege for Google scopes and API keys
+- Keep secrets in runtime environment management, not source control
+
+Note:
+This document is architecture-level guidance and not legal compliance certification.
+
+## 12. Reliability and Observability
+
+Recommended baseline instrumentation:
+
+- request id propagation from frontend through backend and tool calls
+- latency and error metrics per endpoint and per integration adapter
+- structured logs for orchestration decisions and model/router outcomes
+- dead-letter style handling for asynchronous integration failures
+
+Operational SLO examples:
+
+- p95 text orchestration latency under 2.5s
+- p95 voice route latency under 6.0s including STT and TTS
+- non-critical integration errors under 1 percent per day with retries
+
+## 13. Testing Strategy Alignment
+
+Suggested coverage layers:
+
+- unit tests for agents, model routing, and adapter transformations
+- API contract tests for request and response schemas
+- integration tests for database, MCP, calendar, drive, and BigQuery paths
+- smoke tests for ADK to MCP to DB tool invocation
+- frontend interaction tests for critical patient journeys
+
+Repository-aligned tests already include:
+
+- unit tests under tests
+- integration tests under tests/integration
+
+## 14. Architecture Risks and Mitigations
+
+1. External API volatility
+Mitigation: adapter isolation, retry policies, fallback messaging.
+
+2. Model output variability
+Mitigation: constrained prompts, response post-validation, HITL fallback for high-risk domains.
+
+3. Partial workflow failures
+Mitigation: idempotent operations, explicit status payloads, resumable user actions.
+
+4. Coupling between orchestration and providers
+Mitigation: interface contracts and dependency injection in services/adapters.
+
+## 15. Roadmap Anchors
+
+- Expand FHIR or EHR interoperability surface
+- Add policy-driven escalation thresholds and explainability cards
+- Introduce stronger event-driven backbone for integration fan-out
+- Add compliance-ready audit package and retention policy controls
+
+## 16. UI Wireframe Prompt Pack
+
+Use these prompts with Midjourney, Imagen, or equivalent image generation tools to produce concept wireframes aligned with Cure-Quest architecture and the Digital Sanctuary visual system.
+
+### Prompt A: Voice Conversation Screen
+
+Design a healthcare web app voice assistant screen for Cure-Quest. Warm sanctuary aesthetic, cream and sage palette, serif headlines and geometric sans body text, glassmorphism top bar, soft asymmetrical cards, no hard divider lines. Include waveform recording area, transcript panel, AI response card, and model badge showing Gemini. Show state transitions for recording, transcribing, and speaking. Mobile and desktop responsive composition. High-fidelity product wireframe, realistic spacing, clear hierarchy, medically calm tone.
+
+### Prompt B: Medication Hub and Document Upload
+
+Design a medication management dashboard for Cure-Quest. Show drag-and-drop prescription upload card, upload progress states, AI classification tags, medication list with dosage and confidence, and drug safety check panel. Include integrations context chips for Drive, OpenFDA, and clinical model routing. Earth-toned editorial interface with rounded surfaces, tonal depth instead of borders, subtle ambient shadows, intentional asymmetry. Present both default and success states in one composition.
+
+### Prompt C: HITL Clinical Review Workspace
+
+Design a human-in-the-loop clinical review interface for Cure-Quest. Include patient profile summary, active conditions timeline, medications with days-on-medication, AI analysis panel, recommended actions, and doctor escalation CTA. Include trust indicators, audit metadata strip, and reminder scheduling widget. Style should be premium healthcare editorial, warm neutrals with terracotta accents, soft motion cues implied by layered cards. Responsive desktop-first UI with supporting mobile view inset.
+
+### Prompt D: System Architecture Poster
+
+Create a clean architecture poster diagram for Cure-Quest showing React frontend, FastAPI backend, orchestrator layer, specialist agents, MCP server, AlloyDB brain, and external integrations (Drive, Calendar, Gmail, STT/TTS, OpenFDA, BigQuery, HuggingFace, Gemini). Use modern technical infographic style, clear directional arrows, grouped zones, and concise labels. White or warm-neutral background, readable typography, professional conference-slide quality.
+
+## 17. Quick Reference
+
+Primary runtime entrypoints:
+
+- FastAPI app: src/cure_quest/app.py
+- ADK agent wrapper: adk_agents/cure_quest_agent/agent.py
+- MCP server module: src/cure_quest/mcp/server.py
+
+Primary supporting docs:
+
+- Connection architecture: docs/CONNECTION_ARCHITECTURE.md
+- Wiring checklist: docs/WIRING_CHECKLIST.md
+- Product overview and API list: README.md

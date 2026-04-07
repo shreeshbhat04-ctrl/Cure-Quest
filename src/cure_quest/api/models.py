@@ -244,6 +244,7 @@ class ConversationRoutingResponse(BaseModel):
     primary_model: str
     support_model: str | None = None
     reason: str
+    audio_base64: str | None = None
     suggested_response_style: str
     execution_plan: list[str]
 

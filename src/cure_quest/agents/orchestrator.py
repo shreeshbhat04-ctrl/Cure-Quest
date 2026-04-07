@@ -33,9 +33,21 @@ class Orchestrator:
         return self.formulary.check_alternatives(unavailable_medication, conditions)
 
     def build_daily_checkin(self, patient_id: int) -> dict:
+        import re
         profile = self.brain_gateway.get_patient_profile(patient_id)
         conditions = self.temporal_memory.get_relevant_conditions(patient_id)
-        routine_tasks = self.routine.get_daily_routine()
+        all_tasks = self.routine.get_daily_routine()
+        
+        # Filter tasks using exact word boundaries so "Patient 1" doesn't match "Patient 12"
+        patient_pattern = re.compile(rf"Patient {patient_id}\b", re.IGNORECASE)
+        any_patient_pattern = re.compile(r"Patient \d+", re.IGNORECASE)
+        
+        routine_tasks = [
+            task for task in all_tasks
+            if patient_pattern.search(task.name)
+            or not any_patient_pattern.search(task.name)
+        ]
+        
         message = self.communications.compose_daily_checkin(profile, conditions, routine_tasks)
         return {
             "profile": None if profile is None else profile.to_dict(),
@@ -66,7 +78,7 @@ class Orchestrator:
 
     def route_conversation(self, patient_id: int, message: str) -> dict:
         profile = self.brain_gateway.get_patient_profile(patient_id)
-        plan = self.communications.build_conversation_plan(message)
+        plan = self.communications.build_conversation_plan(message, profile=profile)
         return {
             "patient_id": patient_id,
             "profile": None if profile is None else profile.to_dict(),

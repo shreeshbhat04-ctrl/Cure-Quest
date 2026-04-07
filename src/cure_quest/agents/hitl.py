@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -51,3 +53,87 @@ class HITLAgent:
         if context_summary:
             sections.append(f"Latest concern: {context_summary}")
         return "\n".join(sections)
+
+    def build_ai_comprehension(self, db: Session, patient_id: int, patient_name: str | None = None, patient_summary: str | None = None) -> dict:
+        """Generate a comprehensive AI-powered HITL review using Gemini."""
+        from cure_quest.db.models import Patient
+        
+        # Gather all data
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        conditions = list(db.scalars(select(ChronicCondition).where(ChronicCondition.patient_id == patient_id)).all())
+        prescriptions = list(db.scalars(select(Prescription).where(Prescription.patient_id == patient_id)).all())
+        
+        # Build structured patient data
+        today = date.today()
+        
+        patient_info = {
+            "name": patient.full_name if patient else (patient_name or "Unknown"),
+            "dob": str(patient.date_of_birth) if patient and patient.date_of_birth else None,
+            "summary": patient.summary if patient else patient_summary,
+        }
+        
+        condition_data = []
+        for c in conditions:
+            condition_data.append({
+                "name": c.name,
+                "type": c.condition_type,
+                "last_updated": str(c.last_updated) if c.last_updated else None,
+                "notes": c.notes,
+            })
+        
+        medication_data = []
+        for p in prescriptions:
+            days_on_med = (today - p.created_at.date()).days if p.created_at else None
+            medication_data.append({
+                "name": p.medication_name,
+                "dosage": p.dosage,
+                "instructions": p.instructions,
+                "review_status": p.review_status,
+                "days_on_medication": days_on_med,
+                "confidence_score": p.confidence_score,
+            })
+        
+        # Build prompt for Gemini
+        prompt = f"""You are a medical AI assistant performing a Human-in-the-Loop (HITL) comprehensive patient review.
+
+PATIENT PROFILE:
+- Name: {patient_info['name']}
+- Date of Birth: {patient_info['dob'] or 'Not recorded'}
+- Clinical Summary: {patient_info['summary'] or 'No summary available'}
+
+ACTIVE CONDITIONS:
+{chr(10).join(f"- {c['name']} ({c['type']}), Last updated: {c['last_updated'] or 'N/A'}, Notes: {c['notes'] or 'None'}" for c in condition_data) if condition_data else '- No conditions recorded'}
+
+CURRENT MEDICATIONS:
+{chr(10).join(f"- {m['name']} {m['dosage'] or ''}, Status: {m['review_status']}, Days on medication: {m['days_on_medication'] or 'Unknown'}, Instructions: {m['instructions'] or 'None'}" for m in medication_data) if medication_data else '- No medications recorded'}
+
+Please provide a structured HITL review with:
+1. **Patient Comprehension**: A clear, human-readable summary of who this patient is and their current health state.
+2. **Symptom & Condition Analysis**: What conditions they have, how they interact, and any concerns.
+3. **Medication Review**: Each medication, how long they've been on it, and whether the duration/dosage seems appropriate.
+4. **Recommended Actions**: What should happen next (continue, adjust, escalate to doctor, schedule follow-up).
+5. **Reasoning**: Why you recommend each action, grounded in the patient data.
+
+Keep the tone professional but caring. Be concise but thorough."""
+
+        # Call Gemini
+        try:
+            from google import genai
+            from cure_quest.config import get_settings
+            settings = get_settings()
+            client = genai.Client(api_key=settings.google_api_key)
+            response = client.models.generate_content(
+                model=settings.gemini_fast_model_id,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(temperature=0.3),
+            )
+            ai_analysis = response.text.strip()
+        except Exception as e:
+            ai_analysis = f"AI analysis unavailable: {e}"
+
+        return {
+            "patient": patient_info,
+            "conditions": condition_data,
+            "medications": medication_data,
+            "ai_analysis": ai_analysis,
+        }

@@ -43,10 +43,36 @@ class CommunicationsAgent:
             "Let me know how you're feeling and whether you took your medicines."
         )
 
-    def build_conversation_plan(self, message: str) -> dict[str, object]:
+    def build_conversation_plan(self, message: str, profile: BrainPatientProfile | None = None) -> dict[str, object]:
         route = self.model_routing.route_general_conversation(message)
+        
+        # Actually generate the response using Gemini
+        try:
+            from google import genai
+            from cure_quest.config import get_settings
+            settings = get_settings()
+            client = genai.Client(api_key=settings.google_api_key)
+            system_instruction = (
+                "You are an empathetic, calm, and highly capable medical assistant named Cure-Quest Copilot. "
+                "Keep responses concise, conversational, and friendly (1-2 short sentences max). "
+            )
+            if profile:
+                system_instruction += f"\nThe patient's name is {profile.full_name}. Summary: {profile.summary}"
+
+            response = client.models.generate_content(
+                model=route["primary_model"],
+                contents=message,
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.7,
+                )
+            )
+            generated_message = response.text.strip()
+        except Exception as e:
+            generated_message = f"I'm here for you! I heard: {message} (But my generative engine hit an error: {e})"
+
         return {
-            "message": message,
+            "message": generated_message,
             "route_type": route["route_type"],
             "primary_model": route["primary_model"],
             "support_model": route["support_model"],

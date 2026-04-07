@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     alloydb_user: str | None = None
     alloydb_password: str | None = None
     google_api_key: str | None = None
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
     google_genai_use_vertexai: bool = False
     google_cloud_project: str | None = None
     google_cloud_location: str = "us-central1"
@@ -53,7 +55,7 @@ class Settings(BaseSettings):
     medsiglip_model_id: str = "google/medsiglip-448"
     medical_embedding_dimensions: int = 768
     medical_vector_table_name: str = "medical_memories_vector"
-    gemini_fast_model_id: str = "gemini-3.1-flash"
+    gemini_fast_model_id: str = "gemini-3.1-flash-lite-preview"
     asana_access_token: str | None = None
     asana_project_gid: str | None = None
     asana_assignee_gid: str | None = None

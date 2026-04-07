@@ -1,5 +1,5 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
-export const DEMO_PATIENT_ID = Number(import.meta.env.VITE_DEMO_PATIENT_ID ?? '12');
+export const DEMO_PATIENT_ID = Number(import.meta.env.VITE_DEMO_PATIENT_ID ?? '2');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -149,6 +149,33 @@ export async function fetchWorkspace(patientId: number) {
   return request<WorkspacePayload>(`/demo/patient/${patientId}/workspace`);
 }
 
+export interface DocumentUploadResponse {
+  patient_id: number;
+  file_id: string;
+  file_name: string;
+  web_view_link: string | null;
+  prescription_id: number | null;
+  image_category: string | null;
+}
+
+export async function uploadDocumentFile(patientId: number, file: File) {
+  const formData = new FormData();
+  formData.append('patient_id', patientId.toString());
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/documents/upload-file`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Upload failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<DocumentUploadResponse>;
+}
+
 export async function checkAlternatives(patientId: number, unavailableMedication: string) {
   return request<AlternativeResponse>('/patient/check-alternatives', {
     method: 'POST',
@@ -198,4 +225,179 @@ export async function createCalendarEvent(patientId: number, summary: string) {
       duration_minutes: 30,
     }),
   });
+}
+
+export interface ConversationResponse {
+  patient_id: number;
+  message: string;
+  route_type: string;
+  primary_model: string;
+  reason: string;
+  audio_base64?: string;
+}
+
+export async function sendVoiceNote(patientId: number, audioBlob: Blob) {
+  const formData = new FormData();
+  formData.append('patient_id', patientId.toString());
+  formData.append('audio', audioBlob, 'voice.webm');
+
+  const response = await fetch(`${API_BASE_URL}/orchestration/voice-route`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<ConversationResponse>;
+}
+
+export async function sendTextMessage(patientId: number, message: string) {
+  return request<ConversationResponse>('/orchestration/conversation-route', {
+    method: 'POST',
+    body: JSON.stringify({
+      patient_id: patientId,
+      message,
+    }),
+  });
+}
+
+// --- HITL Comprehension ---
+
+export interface HITLCondition {
+  name: string;
+  type: string;
+  last_updated: string | null;
+  notes: string | null;
+}
+
+export interface HITLMedication {
+  name: string;
+  dosage: string | null;
+  instructions: string | null;
+  review_status: string;
+  days_on_medication: number | null;
+  confidence_score: number;
+}
+
+export interface HITLComprehensionResponse {
+  patient_id: number;
+  patient: { name: string; dob: string | null; summary: string | null };
+  conditions: HITLCondition[];
+  medications: HITLMedication[];
+  ai_analysis: string;
+}
+
+export async function fetchHITLComprehension(patientId: number) {
+  return request<HITLComprehensionResponse>('/orchestration/hitl-comprehension', {
+    method: 'POST',
+    body: JSON.stringify({ patient_id: patientId }),
+  });
+}
+
+// --- Reminders ---
+
+export interface Reminder {
+  id: number;
+  medication_name: string;
+  reminder_time: string;
+  created_at: string;
+}
+
+export interface RemindersResponse {
+  patient_id: number;
+  reminders: Reminder[];
+}
+
+export async function fetchReminders(patientId: number) {
+  return request<RemindersResponse>(`/patient/${patientId}/reminders`);
+}
+
+export async function saveReminder(patientId: number, medicationName: string, reminderTime: string) {
+  const formData = new FormData();
+  formData.append('patient_id', patientId.toString());
+  formData.append('medication_name', medicationName);
+  formData.append('reminder_time', reminderTime);
+
+  const response = await fetch(`${API_BASE_URL}/patient/reminders`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to save reminder`);
+  }
+
+  return response.json();
+}
+
+// --- Google Auth ---
+
+export interface GoogleAuthResponse {
+  patient_id: number;
+  name: string;
+  email: string;
+  google_connected: boolean;
+}
+
+export async function exchangeGoogleAuth(code: string): Promise<GoogleAuthResponse> {
+  const formData = new FormData();
+  formData.append('code', code);
+  const response = await fetch(`${API_BASE_URL}/auth/google`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Google auth failed');
+  }
+  return response.json();
+}
+
+export interface GoogleAuthStatus {
+  patient_id: number;
+  google_connected: boolean;
+  email: string | null;
+  services: { drive: boolean; calendar: boolean; gmail: boolean };
+}
+
+export async function checkGoogleAuthStatus(patientId: number) {
+  return request<GoogleAuthStatus>(`/auth/google/status/${patientId}`);
+}
+
+// --- Gmail ---
+
+export interface GmailEmail {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+}
+
+export async function fetchHealthEmails(patientId: number) {
+  return request<{ patient_id: number; emails: GmailEmail[]; error?: string }>(
+    `/gmail/${patientId}/health-emails`
+  );
+}
+
+export async function sendCareSummary(patientId: number, toEmail: string, subject: string, bodyHtml: string) {
+  const formData = new FormData();
+  formData.append('patient_id', patientId.toString());
+  formData.append('to_email', toEmail);
+  formData.append('subject', subject);
+  formData.append('body_html', bodyHtml);
+
+  const response = await fetch(`${API_BASE_URL}/gmail/send-care-summary`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to send email');
+  }
+  return response.json();
 }

@@ -18,6 +18,10 @@ class Patient(Base):
     preferred_language: Mapped[str] = mapped_column(String(50), default="en")
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    google_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    google_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    google_token_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     conditions: Mapped[list["ChronicCondition"]] = relationship(back_populates="patient", cascade="all, delete-orphan")

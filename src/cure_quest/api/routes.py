@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -52,7 +52,6 @@ from cure_quest.api.models import (
 from cure_quest.db.models import EscalationCase
 from cure_quest.db.models import ChronicCondition, MedicalMemory, Notification, Patient, Prescription
 from cure_quest.db.session import get_db
-from cure_quest.demo_ui.dashboard import render_dashboard
 
 router = APIRouter()
 orchestrator = Orchestrator()
@@ -63,9 +62,143 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/demo", response_class=HTMLResponse)
-def demo() -> str:
-    return render_dashboard()
+@router.post("/auth/google")
+def google_auth_exchange(
+    code: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Exchange a Google authorization code for tokens, match to a patient."""
+    import google_auth_oauthlib.flow as oauthflow
+    from cure_quest.config import get_settings
+
+    settings = get_settings()
+    if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
+        raise HTTPException(status_code=500, detail="OAuth client not configured on server.")
+
+    # Build client config for web application flow
+    client_config = {
+        "web": {
+            "client_id": settings.google_oauth_client_id,
+            "client_secret": settings.google_oauth_client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["postmessage"],
+        }
+    }
+    scopes = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+    ]
+    flow = oauthflow.Flow.from_client_config(client_config, scopes=scopes)
+    flow.redirect_uri = "postmessage"
+
+    try:
+        flow.fetch_token(code=code)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {e}")
+
+    creds = flow.credentials
+    # Extract user info from ID token
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    try:
+        id_info = id_token.verify_oauth2_token(
+            creds.id_token, google_requests.Request(), settings.google_oauth_client_id
+        )
+        user_email = id_info.get("email", "")
+        user_name = id_info.get("name", "")
+    except Exception:
+        user_email = ""
+        user_name = ""
+
+    # Try to match to existing patient by email, or by ID 2 as fallback
+    patient = None
+    if user_email:
+        patient = db.scalar(select(Patient).where(Patient.google_email == user_email))
+    if patient is None:
+        # Fallback: assign to patient 2 (Shreesha) and set their email
+        patient = db.scalar(select(Patient).where(Patient.id == 2))
+        if patient is None:
+            raise HTTPException(status_code=404, detail="No matching patient found.")
+        patient.google_email = user_email
+
+    # Save tokens
+    patient.google_access_token = creds.token
+    patient.google_refresh_token = creds.refresh_token
+    patient.google_token_expiry = creds.expiry
+    db.commit()
+
+    return {
+        "patient_id": patient.id,
+        "name": patient.full_name,
+        "email": user_email or patient.google_email,
+        "google_connected": True,
+    }
+
+
+@router.get("/auth/google/status/{patient_id}")
+def google_auth_status(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    has_tokens = bool(patient.google_access_token)
+    return {
+        "patient_id": patient_id,
+        "google_connected": has_tokens,
+        "email": patient.google_email,
+        "services": {
+            "drive": has_tokens,
+            "calendar": has_tokens,
+            "gmail": has_tokens,
+        },
+    }
+
+
+@router.get("/gmail/{patient_id}/health-emails")
+def list_gmail_health_emails(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if not patient or not patient.google_access_token:
+        return {"patient_id": patient_id, "emails": [], "error": "Gmail not connected."}
+
+    from cure_quest.services.google_workspace import credentials_from_tokens
+    creds = credentials_from_tokens(
+        access_token=patient.google_access_token,
+        refresh_token=patient.google_refresh_token,
+    )
+    emails = orchestrator.integrations.list_health_emails(credentials=creds, max_results=5)
+    return {"patient_id": patient_id, "emails": emails}
+
+
+@router.post("/gmail/send-care-summary")
+def send_gmail_care_summary(
+    patient_id: int = Form(...),
+    to_email: str = Form(...),
+    subject: str = Form(...),
+    body_html: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if not patient or not patient.google_access_token:
+        raise HTTPException(status_code=400, detail="Gmail not connected for this patient.")
+
+    from cure_quest.services.google_workspace import credentials_from_tokens
+    creds = credentials_from_tokens(
+        access_token=patient.google_access_token,
+        refresh_token=patient.google_refresh_token,
+    )
+    result = orchestrator.integrations.send_care_email(
+        to=to_email,
+        subject=subject,
+        body_html=body_html,
+        credentials=creds,
+    )
+    return {"patient_id": patient_id, **result}
+
 
 
 @router.get("/demo/patient/{patient_id}/workspace")
@@ -317,6 +450,40 @@ def upload_document(payload: DriveUploadRequest, db: Session = Depends(get_db)) 
     )
 
 
+@router.post("/documents/upload-file", response_model=DriveUploadResponse)
+def upload_document_file(
+    patient_id: int = Form(...),
+    file: UploadFile = File(...),
+    prescription_id: int | None = Form(None),
+    db: Session = Depends(get_db),
+) -> DriveUploadResponse:
+    import tempfile, os
+    suffix = os.path.splitext(file.filename or "upload")[1] or ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(file.file.read())
+        tmp_path = tmp.name
+
+    try:
+        result = orchestrator.integrations.upload_document(
+            db=db,
+            patient_id=patient_id,
+            file_path=tmp_path,
+            mime_type=file.content_type or "application/octet-stream",
+            prescription_id=prescription_id,
+        )
+    finally:
+        os.unlink(tmp_path)
+
+    return DriveUploadResponse(
+        patient_id=patient_id,
+        file_id=result["id"],
+        file_name=result["name"],
+        web_view_link=result.get("webViewLink"),
+        prescription_id=prescription_id,
+        image_category=result.get("image_category"),
+    )
+
+
 @router.post("/calendar/events", response_model=CalendarEventResponse)
 def create_calendar_event(payload: CalendarEventRequest, db: Session = Depends(get_db)) -> CalendarEventResponse:
     result = orchestrator.integrations.create_calendar_event(
@@ -387,6 +554,61 @@ def orchestration_hitl_report(payload: HitlReportRequest, db: Session = Depends(
     )
 
 
+@router.post("/orchestration/hitl-comprehension")
+def orchestration_hitl_comprehension(payload: HitlReportRequest, db: Session = Depends(get_db)):
+    result = orchestrator.hitl.build_ai_comprehension(db, payload.patient_id)
+    return {"patient_id": payload.patient_id, **result}
+
+
+@router.post("/patient/reminders")
+def save_reminder(
+    patient_id: int = Form(...),
+    medication_name: str = Form(...),
+    reminder_time: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Store a medication reminder. Using MedicationEvent as lightweight storage."""
+    from cure_quest.db.models import MedicationEvent
+    event = MedicationEvent(
+        patient_id=patient_id,
+        event_type="reminder_set",
+        medication_name=medication_name,
+        details=reminder_time,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {
+        "id": event.id,
+        "patient_id": patient_id,
+        "medication_name": medication_name,
+        "reminder_time": reminder_time,
+        "status": "saved",
+    }
+
+
+@router.get("/patient/{patient_id}/reminders")
+def get_reminders(patient_id: int, db: Session = Depends(get_db)):
+    from cure_quest.db.models import MedicationEvent
+    events = db.scalars(
+        select(MedicationEvent)
+        .where(MedicationEvent.patient_id == patient_id, MedicationEvent.event_type == "reminder_set")
+        .order_by(MedicationEvent.created_at.desc())
+    ).all()
+    return {
+        "patient_id": patient_id,
+        "reminders": [
+            {
+                "id": e.id,
+                "medication_name": e.medication_name,
+                "reminder_time": e.details,
+                "created_at": str(e.created_at),
+            }
+            for e in events
+        ],
+    }
+
+
 @router.post("/orchestration/diet-support", response_model=DietSupportResponse)
 def orchestration_diet_support(payload: DietSupportRequest) -> DietSupportResponse:
     result = orchestrator.build_diet_and_pharmacy_support(
@@ -430,6 +652,30 @@ def orchestration_run_document_flow(payload: DocumentFlowRequest, db: Session = 
 @router.post("/orchestration/conversation-route", response_model=ConversationRoutingResponse)
 def orchestration_conversation_route(payload: ConversationRoutingRequest) -> ConversationRoutingResponse:
     result = orchestrator.route_conversation(patient_id=payload.patient_id, message=payload.message)
+    return ConversationRoutingResponse(**result)
+
+
+import base64
+
+@router.post("/orchestration/voice-route", response_model=ConversationRoutingResponse)
+def orchestration_voice_route(
+    patient_id: int = Form(...),
+    audio: UploadFile = File(...)
+) -> ConversationRoutingResponse:
+    audio_bytes = audio.file.read()
+    stt_result = orchestrator.integrations.transcribe_audio(audio_bytes)
+    
+    transcript = stt_result.get("transcript")
+    if not transcript:
+        raise HTTPException(status_code=400, detail=f"Audio transcription failed: {stt_result.get('error')}")
+        
+    result = orchestrator.route_conversation(patient_id=patient_id, message=transcript)
+    
+    # Text-to-Speech logic for voice-route
+    tts_result = orchestrator.integrations.synthesize_speech(result["message"])
+    if tts_result.get("audio_bytes"):
+        result["audio_base64"] = base64.b64encode(tts_result["audio_bytes"]).decode("utf-8")
+        
     return ConversationRoutingResponse(**result)
 
 

@@ -63,18 +63,23 @@ class McpBrainGateway(BrainGateway):
                 result = await session.call_tool(tool_name, arguments=arguments)
                 return extract_mcp_payload(result)
 
+    def _run_sync(self, coro) -> dict:
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+
     def healthcheck(self) -> dict[str, str]:
-        return asyncio.run(self._call_tool("brain_healthcheck", {}))
+        return self._run_sync(self._call_tool("brain_healthcheck", {}))
 
     def get_patient_profile(self, patient_id: int) -> BrainPatientProfile | None:
-        payload = asyncio.run(self._call_tool("brain_get_patient_profile", {"patient_id": patient_id}))
+        payload = self._run_sync(self._call_tool("brain_get_patient_profile", {"patient_id": patient_id}))
         profile = payload.get("profile")
         if profile is None:
             return None
         return BrainPatientProfile(**profile)
 
     def get_relevant_conditions(self, patient_id: int) -> list[BrainCondition]:
-        payload = asyncio.run(self._call_tool("brain_get_relevant_conditions", {"patient_id": patient_id}))
+        payload = self._run_sync(self._call_tool("brain_get_relevant_conditions", {"patient_id": patient_id}))
         return [BrainCondition(**item) for item in payload.get("conditions", [])]
 
 

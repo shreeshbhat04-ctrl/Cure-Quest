@@ -187,6 +187,21 @@ export function CareMazeScreen({
                 <EmptyState title="No pharmacy results" description="Try another neighborhood or city query to draw a stronger route." />
               )}
             </div>
+
+            {supportResult.pharmacy_result.pharmacies.length > 0 && locationQuery && (
+              <div className="mt-5 h-[280px] w-full overflow-hidden rounded-[1.5rem] bg-surface-container shadow-inner">
+                <iframe
+                  title="Pharmacy Map"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent('pharmacies near ' + locationQuery)}&z=14&ie=UTF8&iwloc=&output=embed`}
+                />
+              </div>
+            )}
           </SoftCard>
         </div>
       ) : null}
