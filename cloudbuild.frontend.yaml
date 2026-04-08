@@ -1,15 +1,26 @@
 substitutions:
-  _SERVICE_NAME: cure-quest-api
   _REGION: us-central1
   _AR_REPOSITORY: cure-quest
-  _IMAGE_NAME: cure-quest-api
+  _IMAGE_NAME: cure-quest-web
+  _SERVICE_NAME: cure-quest-web
+  _VITE_API_BASE_URL: https://cure-quest-api-315569715049.us-central1.run.app
+  _VITE_GOOGLE_CLIENT_ID: 315569715049-qodevt85o8hlvcdoa9rdq09nnm6kk3hn.apps.googleusercontent.com
+  _VITE_DEMO_PATIENT_ID: "2"
 
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - -f
+      - frontend.Dockerfile
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPOSITORY}/${_IMAGE_NAME}:${BUILD_ID}
+      - --build-arg
+      - VITE_API_BASE_URL=${_VITE_API_BASE_URL}
+      - --build-arg
+      - VITE_GOOGLE_CLIENT_ID=${_VITE_GOOGLE_CLIENT_ID}
+      - --build-arg
+      - VITE_DEMO_PATIENT_ID=${_VITE_DEMO_PATIENT_ID}
       - .
 
   - name: gcr.io/cloud-builders/docker
@@ -29,8 +40,6 @@ steps:
       - ${_REGION}
       - --platform
       - managed
-      - --set-env-vars
-      - APP_ENV=production,APP_HOST=0.0.0.0
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPOSITORY}/${_IMAGE_NAME}:${BUILD_ID}

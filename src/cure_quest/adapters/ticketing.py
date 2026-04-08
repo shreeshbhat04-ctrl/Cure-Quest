@@ -3,8 +3,11 @@ from datetime import date
 from uuid import uuid4
 
 import httpx
+import logging
 
 from cure_quest.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,6 +69,7 @@ class AsanaTicketingAdapter(TicketingAdapter):
     def __init__(self) -> None:
         self.settings = get_settings()
         self.base_url = "https://app.asana.com/api/1.0"
+        self._mock = MockTicketingAdapter()
 
     def create_review_ticket(self, patient_id: int, summary: str, case_type: str) -> TicketResult:
         if not self.settings.asana_access_token or not self.settings.asana_project_gid:
@@ -92,18 +96,22 @@ class AsanaTicketingAdapter(TicketingAdapter):
             "Content-Type": "application/json",
         }
 
-        with httpx.Client(timeout=20.0) as client:
-            response = client.post(
-                f"{self.base_url}/tasks",
-                json={"data": data},
-                headers=headers,
-            )
-            response.raise_for_status()
-            payload = response.json()["data"]
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                response = client.post(
+                    f"{self.base_url}/tasks",
+                    json={"data": data},
+                    headers=headers,
+                )
+                response.raise_for_status()
+                payload = response.json()["data"]
 
-        task_gid = payload["gid"]
-        permalink = payload.get("permalink_url")
-        return TicketResult(ticket_id=task_gid, status="created", external_url=permalink)
+            task_gid = payload["gid"]
+            permalink = payload.get("permalink_url")
+            return TicketResult(ticket_id=task_gid, status="created", external_url=permalink)
+        except Exception as error:
+            logger.warning("Asana ticket creation failed, falling back to mock ticket: %s", error)
+            return self._mock.create_review_ticket(patient_id=patient_id, summary=summary, case_type=case_type)
 
     def list_routine_tasks(self) -> list[RoutineTask]:
         if not self.settings.asana_access_token or not self.settings.asana_project_gid:
@@ -119,29 +127,33 @@ class AsanaTicketingAdapter(TicketingAdapter):
             "limit": 20,
         }
 
-        with httpx.Client(timeout=20.0) as client:
-            response = client.get(
-                f"{self.base_url}/projects/{self.settings.asana_project_gid}/tasks",
-                params=params,
-                headers=headers,
-            )
-            response.raise_for_status()
-            payload = response.json()["data"]
-        tasks = [
-            RoutineTask(
-                task_id=item["gid"],
-                name=item.get("name", ""),
-                completed=item.get("completed", False),
-                due_on=item.get("due_on"),
-                notes=item.get("notes"),
-                assignee_name=(item.get("assignee") or {}).get("name"),
-                permalink_url=item.get("permalink_url"),
-            )
-            for item in payload
-        ]
-        if self.settings.asana_assignee_gid:
-            tasks = [task for task in tasks if task.assignee_name]
-        return tasks
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                response = client.get(
+                    f"{self.base_url}/projects/{self.settings.asana_project_gid}/tasks",
+                    params=params,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                payload = response.json()["data"]
+            tasks = [
+                RoutineTask(
+                    task_id=item["gid"],
+                    name=item.get("name", ""),
+                    completed=item.get("completed", False),
+                    due_on=item.get("due_on"),
+                    notes=item.get("notes"),
+                    assignee_name=(item.get("assignee") or {}).get("name"),
+                    permalink_url=item.get("permalink_url"),
+                )
+                for item in payload
+            ]
+            if self.settings.asana_assignee_gid:
+                tasks = [task for task in tasks if task.assignee_name]
+            return tasks
+        except Exception as error:
+            logger.warning("Asana routine fetch failed, falling back to mock tasks: %s", error)
+            return self._mock.list_routine_tasks()
 
 
 def build_ticketing_adapter() -> TicketingAdapter:

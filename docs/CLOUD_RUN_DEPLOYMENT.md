@@ -81,3 +81,27 @@ VITE_API_BASE_URL=https://YOUR_CLOUD_RUN_URL
 ```
 
 Then deploy the Vite frontend separately, or containerize it in a second service if you want the UI on Cloud Run too.
+
+## Frontend on Cloud Run
+
+This repo also includes:
+
+- `frontend.Dockerfile`
+- `cloudbuild.frontend.yaml`
+
+Deploy the frontend with Cloud Build:
+
+```powershell
+gcloud builds submit `
+  --config cloudbuild.frontend.yaml `
+  --substitutions "_REGION=us-central1,_AR_REPOSITORY=cure-quest,_IMAGE_NAME=cure-quest-web,_SERVICE_NAME=cure-quest-web,_VITE_API_BASE_URL=https://YOUR_BACKEND_CLOUD_RUN_URL,_VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID,_VITE_DEMO_PATIENT_ID=2"
+```
+
+If your account can set public IAM during deploy, you can then make it public:
+
+```powershell
+gcloud beta run services add-iam-policy-binding cure-quest-web `
+  --region=us-central1 `
+  --member=allUsers `
+  --role=roles/run.invoker
+```

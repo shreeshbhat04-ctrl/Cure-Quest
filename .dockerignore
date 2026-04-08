@@ -10,7 +10,6 @@ __pycache__
 *.db
 *.sqlite
 credentials
-frontend
 notebooks
 tests
 docs

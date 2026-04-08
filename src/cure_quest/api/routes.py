@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -55,6 +55,44 @@ from cure_quest.db.session import get_db
 
 router = APIRouter()
 orchestrator = Orchestrator()
+
+
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
+def root() -> HTMLResponse:
+    return HTMLResponse(
+        """
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Cure-Quest API</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #fcfaee; color: #1b1c15; }
+              .card { max-width: 720px; margin: 0 auto; padding: 32px; background: white; border-radius: 24px; box-shadow: 0 12px 32px rgba(27,28,21,0.08); }
+              h1 { margin-top: 0; }
+              a { color: #536431; text-decoration: none; font-weight: 600; }
+              ul { line-height: 1.8; }
+            </style>
+          </head>
+          <body>
+            <main class="card">
+              <h1>Cure-Quest API</h1>
+              <p>The backend service is running on Cloud Run.</p>
+              <ul>
+                <li><a href="/docs">Open API docs</a></li>
+                <li><a href="/health">Health check</a></li>
+              </ul>
+            </main>
+          </body>
+        </html>
+        """
+    )
+
+
+@router.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    return Response(status_code=204)
 
 
 @router.get("/health")
