@@ -650,8 +650,8 @@ def orchestration_run_document_flow(payload: DocumentFlowRequest, db: Session = 
 
 
 @router.post("/orchestration/conversation-route", response_model=ConversationRoutingResponse)
-def orchestration_conversation_route(payload: ConversationRoutingRequest) -> ConversationRoutingResponse:
-    result = orchestrator.route_conversation(patient_id=payload.patient_id, message=payload.message)
+def orchestration_conversation_route(payload: ConversationRoutingRequest, db: Session = Depends(get_db)) -> ConversationRoutingResponse:
+    result = orchestrator.route_conversation(patient_id=payload.patient_id, message=payload.message, db=db)
     return ConversationRoutingResponse(**result)
 
 
@@ -660,7 +660,8 @@ import base64
 @router.post("/orchestration/voice-route", response_model=ConversationRoutingResponse)
 def orchestration_voice_route(
     patient_id: int = Form(...),
-    audio: UploadFile = File(...)
+    audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
 ) -> ConversationRoutingResponse:
     audio_bytes = audio.file.read()
     stt_result = orchestrator.integrations.transcribe_audio(audio_bytes)
@@ -669,7 +670,7 @@ def orchestration_voice_route(
     if not transcript:
         raise HTTPException(status_code=400, detail=f"Audio transcription failed: {stt_result.get('error')}")
         
-    result = orchestrator.route_conversation(patient_id=patient_id, message=transcript)
+    result = orchestrator.route_conversation(patient_id=patient_id, message=transcript, db=db)
     
     # Text-to-Speech logic for voice-route
     tts_result = orchestrator.integrations.synthesize_speech(result["message"])

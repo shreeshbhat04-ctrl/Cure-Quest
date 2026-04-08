@@ -48,6 +48,21 @@ class StubIntegrations:
         self.events.append((event_type, payload))
         return {"logged": True, "event_id": "evt-1", "provider": "mock"}
 
+    def list_health_emails(self, credentials=None, max_results: int = 5):
+        _ = credentials, max_results
+        return [{"subject": "Lab report ready"}, {"subject": "Prescription update"}]
+
+    def send_care_email(self, to: str, subject: str, body_html: str, credentials=None):
+        _ = subject, body_html, credentials
+        return {"sent": True, "message_id": f"msg-for-{to}", "error": None}
+
+    def list_drive_files(self, credentials=None, max_results: int = 5):
+        _ = credentials, max_results
+        return [
+            {"name": "Prescription-April.pdf", "webViewLink": "https://drive.example/prescription-april"},
+            {"name": "Lab-Results.pdf", "webViewLink": "https://drive.example/lab-results"},
+        ]
+
 
 def test_build_daily_checkin_returns_message_and_tasks() -> None:
     orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
@@ -78,6 +93,137 @@ def test_route_conversation_uses_medgemma_for_medical_text() -> None:
     result = orchestrator.route_conversation(patient_id=1, message="I have fever and stomach pain after taking my medicine.")
     assert result["primary_model"] == orchestrator.model_routing.settings.medgemma_model_id
     assert result["route_type"] == "medical_text"
+
+
+def test_route_conversation_can_create_calendar_follow_up() -> None:
+    init_database()
+    orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
+    orchestrator.integrations = StubIntegrations()
+    orchestrator.communications.build_conversation_plan = lambda message, profile=None: {  # type: ignore[method-assign]
+        "message": "I’m with you.",
+        "route_type": "medical_text",
+        "primary_model": orchestrator.model_routing.settings.medgemma_model_id,
+        "support_model": orchestrator.model_routing.settings.gemini_fast_model_id,
+        "reason": "Medical request detected.",
+        "suggested_response_style": "calm",
+        "execution_plan": ["Respond to the patient."],
+    }
+
+    with SessionLocal() as db:
+        result = orchestrator.route_conversation(
+            patient_id=1,
+            message="Can you book a doctor appointment for me?",
+            db=db,
+        )
+
+    assert "follow-up appointment" in result["message"]
+    assert "calendar.example" in result["message"]
+
+
+def test_route_conversation_can_read_health_emails() -> None:
+    init_database()
+    orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
+    orchestrator.integrations = StubIntegrations()
+    orchestrator.communications.build_conversation_plan = lambda message, profile=None: {  # type: ignore[method-assign]
+        "message": "I checked for you.",
+        "route_type": "general_conversation",
+        "primary_model": orchestrator.model_routing.settings.gemini_fast_model_id,
+        "support_model": None,
+        "reason": "General request detected.",
+        "suggested_response_style": "calm",
+        "execution_plan": ["Respond to the patient."],
+    }
+
+    with SessionLocal() as db:
+        patient = orchestrator.intake.intake_patient(
+            db,
+            PatientIntakeRequest(full_name="Asha Rao", preferred_language="en", active_conditions=[]),
+        )
+        patient.google_access_token = "token"
+        patient.google_refresh_token = "refresh"
+        db.commit()
+        result = orchestrator.route_conversation(
+            patient_id=patient.id,
+            message="Can you check my recent health emails?",
+            db=db,
+        )
+
+    assert "Lab report ready" in result["message"]
+
+
+def test_route_conversation_returns_prescription_list_from_workspace() -> None:
+    init_database()
+    orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
+    orchestrator.communications.build_conversation_plan = lambda message, profile=None: {  # type: ignore[method-assign]
+        "message": "Let me check that.",
+        "route_type": "medical_text",
+        "primary_model": orchestrator.model_routing.settings.medgemma_model_id,
+        "support_model": orchestrator.model_routing.settings.gemini_fast_model_id,
+        "reason": "Medical request detected.",
+        "suggested_response_style": "calm",
+        "execution_plan": ["Respond to the patient."],
+    }
+
+    with SessionLocal() as db:
+        patient = orchestrator.intake.intake_patient(
+            db,
+            PatientIntakeRequest(full_name="Asha Rao", preferred_language="en", active_conditions=[]),
+        )
+        orchestrator.intake.scan_prescription(
+            db=db,
+            patient_id=patient.id,
+            image_reference=None,
+            raw_text_hint="Metformin 500 mg twice daily with meals",
+        )
+        result = orchestrator.route_conversation(
+            patient_id=patient.id,
+            message="Can you show my current prescriptions?",
+            db=db,
+        )
+
+    assert result["message"].startswith("Here are the latest stored prescriptions:")
+    assert "Metformin" in result["message"]
+
+
+def test_route_conversation_can_read_drive_files_and_prescription_docs() -> None:
+    init_database()
+    orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
+    orchestrator.integrations = StubIntegrations()
+    orchestrator.communications.build_conversation_plan = lambda message, profile=None: {  # type: ignore[method-assign]
+        "message": "I’ll check Drive.",
+        "route_type": "general_conversation",
+        "primary_model": orchestrator.model_routing.settings.gemini_fast_model_id,
+        "support_model": None,
+        "reason": "General request detected.",
+        "suggested_response_style": "calm",
+        "execution_plan": ["Respond to the patient."],
+    }
+
+    with SessionLocal() as db:
+        patient = orchestrator.intake.intake_patient(
+            db,
+            PatientIntakeRequest(full_name="Asha Rao", preferred_language="en", active_conditions=[]),
+        )
+        patient.google_access_token = "token"
+        patient.google_refresh_token = "refresh"
+        prescription = orchestrator.intake.scan_prescription(
+            db=db,
+            patient_id=patient.id,
+            image_reference=None,
+            raw_text_hint="Metformin 500 mg twice daily with meals",
+        )
+        prescription.document_drive_file_url = "https://drive.example/prescription-linked"
+        db.commit()
+
+        result = orchestrator.route_conversation(
+            patient_id=patient.id,
+            message="Can you check my Google Drive prescription documents?",
+            db=db,
+        )
+
+    assert "Recent Drive files" in result["message"]
+    assert "Prescription docs" in result["message"]
+    assert "Prescription-April.pdf" in result["message"]
 
 
 def test_route_medical_input_uses_medsiglip_for_images() -> None:

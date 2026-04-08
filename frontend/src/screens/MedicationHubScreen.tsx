@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { FileSearch, Microscope, PillBottle, ShieldAlert, Upload, CheckCircle2, Loader2 } from 'lucide-react';
 import {
@@ -23,8 +23,8 @@ export function MedicationHubScreen({
   onRefresh: () => void;
   patientId: number;
 }) {
-  const seededMedication = workspace?.prescriptions[0]?.medication_name ?? 'Metformin';
-  const [medicationName, setMedicationName] = useState(seededMedication);
+  const [medicationName, setMedicationName] = useState('Metformin');
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<number | null>(null);
   const [alternativeResult, setAlternativeResult] = useState<AlternativeResponse | null>(null);
   const [drugLabel, setDrugLabel] = useState<DrugLabelResponse | null>(null);
   const [busy, setBusy] = useState<'alternatives' | 'label' | null>(null);
@@ -38,8 +38,31 @@ export function MedicationHubScreen({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const latestPrescription = workspace?.prescriptions[0] ?? null;
+  const prescriptions = workspace?.prescriptions ?? [];
+  const latestPrescription =
+    prescriptions.find((prescription) => prescription.id === selectedPrescriptionId) ??
+    prescriptions[0] ??
+    null;
   const triggerManifest = workspace?.manifest.trigger_manifest ?? {};
+
+  useEffect(() => {
+    if (!prescriptions.length) {
+      setSelectedPrescriptionId(null);
+      return;
+    }
+
+    setSelectedPrescriptionId((currentId) => {
+      if (currentId && prescriptions.some((prescription) => prescription.id === currentId)) {
+        return currentId;
+      }
+      return prescriptions[0].id;
+    });
+  }, [prescriptions]);
+
+  useEffect(() => {
+    if (!latestPrescription?.medication_name) return;
+    setMedicationName(latestPrescription.medication_name);
+  }, [latestPrescription?.id, latestPrescription?.medication_name]);
 
   const documentRouteSummary = useMemo(() => {
     const name = selectedFile?.name?.toLowerCase() ?? '';
@@ -164,6 +187,22 @@ export function MedicationHubScreen({
           </div>
           {latestPrescription ? (
             <div className="mt-6 space-y-3">
+              {prescriptions.length > 1 ? (
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-on-surface/60">Prescription record</span>
+                  <select
+                    value={selectedPrescriptionId ?? latestPrescription.id}
+                    onChange={(event) => setSelectedPrescriptionId(Number(event.target.value))}
+                    className="input-shell appearance-none"
+                  >
+                    {prescriptions.map((prescription) => (
+                      <option key={prescription.id} value={prescription.id}>
+                        {prescription.medication_name} · {new Date(prescription.created_at).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <Pill>{latestPrescription.review_status}</Pill>
               <p className="text-lg">{latestPrescription.medication_name}</p>
               <p className="text-sm leading-7 text-on-surface/60">{latestPrescription.instructions ?? 'No explicit instructions stored yet.'}</p>

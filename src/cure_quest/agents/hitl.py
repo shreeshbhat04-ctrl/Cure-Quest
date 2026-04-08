@@ -113,6 +113,7 @@ Please provide a structured HITL review with:
 3. **Medication Review**: Each medication, how long they've been on it, and whether the duration/dosage seems appropriate.
 4. **Recommended Actions**: What should happen next (continue, adjust, escalate to doctor, schedule follow-up).
 5. **Reasoning**: Why you recommend each action, grounded in the patient data.
+6. **dont use key words like ** ## or any special symbols ,tone your response from point to pointin a professional but caring manner, and be concise yet thorough in your analysis.
 
 Keep the tone professional but caring. Be concise but thorough."""
 

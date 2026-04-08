@@ -73,6 +73,7 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - [Architecture and Design](docs/ARCHITECTURE_AND_DESIGN.md)
 - [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md)
 - [Wiring Checklist](docs/WIRING_CHECKLIST.md)
+- [Cloud Run Deployment](docs/CLOUD_RUN_DEPLOYMENT.md)
 - [Design System Specification](DESIGN.md)
 
 ---
@@ -135,6 +136,16 @@ uvicorn cure_quest.app:app --reload
 ```
 
 Visit `http://localhost:3000` for the UI, or `http://localhost:8000/docs` for the API docs.
+
+### Cloud Run
+
+The backend API is prepared for Cloud Run deployment with:
+
+- `Dockerfile`
+- `.dockerignore`
+- `cloudbuild.yaml`
+
+See `docs/CLOUD_RUN_DEPLOYMENT.md` for the exact build, deploy, env var, and frontend wiring steps.
 
 ---
 

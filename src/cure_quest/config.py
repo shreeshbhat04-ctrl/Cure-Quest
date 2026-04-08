@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     app_host: str = "127.0.0.1"
     app_port: int = 8000
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://192.168.56.1:3000,http://192.168.56.1:3000/"
     app_api_key: str | None = None
     database_url: str = "sqlite:///./cure_quest.db"
     brain_gateway_mode: Literal["direct", "mcp"] = "direct"
@@ -51,11 +51,13 @@ class Settings(BaseSettings):
     google_maps_api_key: str | None = None
     medical_model_backend: Literal["placeholder", "huggingface", "vertex"] = "placeholder"
     huggingface_hub_token: str | None = None
+    medgemma_proxy_enabled: bool = True
     medgemma_model_id: str = "google/medgemma-1.5-4b-it"
     medsiglip_model_id: str = "google/medsiglip-448"
     medical_embedding_dimensions: int = 768
     medical_vector_table_name: str = "medical_memories_vector"
     gemini_fast_model_id: str = "gemini-3.1-flash-lite-preview"
+    gemini_fast_fallback_model_ids: str = "gemini-2.5-flash,gemini-2.0-flash"
     asana_access_token: str | None = None
     asana_project_gid: str | None = None
     asana_assignee_gid: str | None = None
@@ -67,6 +69,22 @@ class Settings(BaseSettings):
     @property
     def mcp_server_arg_list(self) -> list[str]:
         return [part for part in self.mcp_server_args.split(" ") if part]
+
+    @property
+    def gemini_fast_model_candidates(self) -> list[str]:
+        configured = [self.gemini_fast_model_id]
+        configured.extend(
+            model_id.strip()
+            for model_id in self.gemini_fast_fallback_model_ids.split(",")
+            if model_id.strip()
+        )
+        seen: set[str] = set()
+        candidates: list[str] = []
+        for model_id in configured:
+            if model_id not in seen:
+                seen.add(model_id)
+                candidates.append(model_id)
+        return candidates
 
     @property
     def cors_origin_list(self) -> list[str]:

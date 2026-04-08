@@ -13,14 +13,14 @@ from cure_quest.db.session import SessionLocal
 # ── Drive file references ──────────────────────────────────────────
 # Replace these with the real Google Drive file IDs and URLs for your
 # eczema / epilepsy document images once uploaded.
-ECZEMA_DOC_DRIVE_FILE_ID = None          # e.g. "1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
-ECZEMA_DOC_DRIVE_FILE_URL = None         # e.g. "https://drive.google.com/file/d/1aBc.../view"
+ECZEMA_DOC_DRIVE_FILE_ID = "1aQG7xEbVDFFkZOMrOTYsihooP51Yv_UY"          # e.g. "1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+ECZEMA_DOC_DRIVE_FILE_URL = "https://drive.google.com/drive/folders/1aQG7xEbVDFFkZOMrOTYsihooP51Yv_UY"         # e.g. "https://drive.google.com/file/d/1aBc.../view"
 EPILEPSY_DOC_DRIVE_FILE_ID = None        # e.g. "1zYxWvUtSrQpOnMlKjIhGfEdCbA"
 EPILEPSY_DOC_DRIVE_FILE_URL = None       # e.g. "https://drive.google.com/file/d/1zYx.../view"
 
 
 def main() -> None:
-    init_database()
+    #init_database()
 
     with SessionLocal() as db:
         # Upsert patient 2
@@ -94,8 +94,8 @@ def main() -> None:
         db.add(Prescription(
             patient_id=2,
             source_reference="epilepsy_prescription_scan.jpg",
-            raw_text="Levetiracetam 500mg tablets. Take one tablet twice daily (morning and evening). Do not stop abruptly — taper under medical supervision.",
-            medication_name="Levetiracetam 500mg",
+            raw_text="Divalproex 500mg tablets. Take one tablet twice daily (morning and evening). Do not stop abruptly — taper under medical supervision.",
+            medication_name="Divalproex 500mg",
             dosage="500mg twice daily",
             instructions="Take with food to reduce GI side effects. Do not discontinue abruptly. Report mood changes, unusual bruising, or increased seizure frequency immediately.",
             confidence_score=0.95,

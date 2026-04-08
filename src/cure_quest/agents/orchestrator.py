@@ -1,3 +1,6 @@
+import re
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from cure_quest.agents.communications import CommunicationsAgent
@@ -10,6 +13,8 @@ from cure_quest.agents.intake import IntakeAgent
 from cure_quest.agents.routine import RoutineAgent
 from cure_quest.agents.temporal_memory import TemporalMemoryAgent
 from cure_quest.adapters.brain import BrainGateway, build_brain_gateway
+from cure_quest.db.models import Patient, Prescription
+from cure_quest.services.google_workspace import credentials_from_tokens
 from cure_quest.services.model_routing import ModelRoutingService
 
 
@@ -76,14 +81,303 @@ class Orchestrator:
             prescription_id=prescription_id,
         )
 
-    def route_conversation(self, patient_id: int, message: str) -> dict:
+    def route_conversation(self, patient_id: int, message: str, db: Session | None = None) -> dict:
         profile = self.brain_gateway.get_patient_profile(patient_id)
         plan = self.communications.build_conversation_plan(message, profile=profile)
+        tool_outcome = self._maybe_execute_conversation_tool(
+            db=db,
+            patient_id=patient_id,
+            message=message,
+            patient_name=None if profile is None else profile.full_name,
+        )
+        if tool_outcome is not None:
+            plan["message"] = tool_outcome["message"]
+            plan["execution_plan"] = [*plan["execution_plan"], *tool_outcome["execution_plan"]]
+            plan["reason"] = f"{plan['reason']} {tool_outcome['reason']}".strip()
         return {
             "patient_id": patient_id,
             "profile": None if profile is None else profile.to_dict(),
             **plan,
         }
+
+    def _maybe_execute_conversation_tool(
+        self,
+        db: Session | None,
+        patient_id: int,
+        message: str,
+        patient_name: str | None,
+    ) -> dict | None:
+        if db is None:
+            return None
+
+        normalized = message.lower().strip()
+
+        if self._is_calendar_request(normalized):
+            return self._execute_calendar_request(db=db, patient_id=patient_id, patient_name=patient_name)
+
+        if self._is_health_email_list_request(normalized):
+            return self._execute_health_email_list(db=db, patient_id=patient_id)
+
+        if self._is_send_email_request(normalized):
+            return self._execute_send_email(db=db, patient_id=patient_id, message=message, patient_name=patient_name)
+
+        if self._is_escalation_request(normalized):
+            return self._execute_escalation(db=db, patient_id=patient_id, message=message)
+
+        if self._is_drive_request(normalized):
+            return self._execute_drive_request(db=db, patient_id=patient_id, normalized=normalized)
+
+        if self._is_prescription_lookup_request(normalized):
+            return self._execute_prescription_lookup(db=db, patient_id=patient_id)
+
+        return None
+
+    def _execute_calendar_request(self, db: Session, patient_id: int, patient_name: str | None) -> dict:
+        summary = f"Doctor follow-up for {patient_name or f'patient {patient_id}'}"
+        result = self.integrations.create_calendar_event(
+            db=db,
+            patient_id=patient_id,
+            summary=summary,
+            minutes_from_now=45,
+            duration_minutes=30,
+        )
+        return {
+            "message": (
+                "I created a follow-up appointment on the connected calendar. "
+                + (
+                    f"Open it here: {result.get('htmlLink')}"
+                    if result.get("htmlLink")
+                    else "It was created with the default follow-up window."
+                )
+            ),
+            "reason": "The message requested booking or scheduling a doctor follow-up.",
+            "execution_plan": [
+                "Create a calendar follow-up event through the connected calendar integration.",
+            ],
+        }
+
+    def _execute_health_email_list(self, db: Session, patient_id: int) -> dict:
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        if not patient or not patient.google_access_token:
+            return {
+                "message": "I can check health emails after Google Gmail is connected for this patient.",
+                "reason": "Email lookup requires stored Google OAuth tokens.",
+                "execution_plan": [
+                    "Ask the user to connect Google Gmail before reading inbox messages.",
+                ],
+            }
+
+        creds = credentials_from_tokens(
+            access_token=patient.google_access_token,
+            refresh_token=patient.google_refresh_token,
+        )
+        emails = self.integrations.list_health_emails(credentials=creds, max_results=5)
+        if not emails:
+            return {
+                "message": "I checked the connected Gmail account and didn’t find recent health-related emails.",
+                "reason": "The message asked to inspect recent health emails.",
+                "execution_plan": [
+                    "Query recent health-related Gmail messages for the connected patient account.",
+                ],
+            }
+
+        preview = "; ".join(email.get("subject", "(no subject)") for email in emails[:3])
+        return {
+            "message": f"I checked the connected Gmail account. Recent health-related emails include: {preview}.",
+            "reason": "The message asked to inspect recent health emails.",
+            "execution_plan": [
+                "Query recent health-related Gmail messages for the connected patient account.",
+            ],
+        }
+
+    def _execute_send_email(self, db: Session, patient_id: int, message: str, patient_name: str | None) -> dict:
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        target_email_match = re.search(r"[\w.\-+]+@[\w.\-]+\.\w+", message)
+        if target_email_match is None:
+            return {
+                "message": "I can send an email, but I need the recipient email address in the message.",
+                "reason": "Email sending requires an explicit recipient address.",
+                "execution_plan": [
+                    "Ask for a concrete recipient email address before sending care summary mail.",
+                ],
+            }
+        if not patient or not patient.google_access_token:
+            return {
+                "message": "I can send email after Google Gmail is connected for this patient.",
+                "reason": "Email sending requires stored Google OAuth tokens.",
+                "execution_plan": [
+                    "Ask the user to connect Google Gmail before sending mail.",
+                ],
+            }
+
+        target_email = target_email_match.group(0)
+        creds = credentials_from_tokens(
+            access_token=patient.google_access_token,
+            refresh_token=patient.google_refresh_token,
+        )
+        subject = f"Cure-Quest care summary for {patient_name or f'patient {patient_id}'}"
+        body_html = (
+            f"<p>Care summary for {patient_name or f'patient {patient_id}'}.</p>"
+            f"<p>Requested from chat/voice: {message}</p>"
+        )
+        result = self.integrations.send_care_email(
+            to=target_email,
+            subject=subject,
+            body_html=body_html,
+            credentials=creds,
+        )
+        if result.get("sent"):
+            return {
+                "message": f"I sent the care summary email to {target_email}.",
+                "reason": "The message requested sending a care summary email.",
+                "execution_plan": [
+                    "Send the care summary through the connected Gmail integration.",
+                ],
+            }
+        return {
+            "message": f"I tried to send the email to {target_email}, but it failed: {result.get('error') or 'unknown error'}.",
+            "reason": "The message requested sending a care summary email.",
+            "execution_plan": [
+                "Attempt to send the care summary through the connected Gmail integration.",
+            ],
+        }
+
+    def _execute_escalation(self, db: Session, patient_id: int, message: str) -> dict:
+        case = self.hitl.create_case(db, patient_id, "doctor_review", message)
+        return {
+            "message": (
+                "I created a doctor handoff for review."
+                + (
+                    f" Open it here: {case.external_ticket_url}"
+                    if case.external_ticket_url
+                    else ""
+                )
+            ),
+            "reason": "The message requested escalation or doctor handoff.",
+            "execution_plan": [
+                "Create a doctor-review case through the escalation workflow.",
+            ],
+        }
+
+    def _execute_prescription_lookup(self, db: Session, patient_id: int) -> dict:
+        prescriptions = db.scalars(
+            select(Prescription)
+            .where(Prescription.patient_id == patient_id)
+            .order_by(Prescription.created_at.desc())
+        ).all()
+
+        if not prescriptions:
+            return {
+                "message": "I don’t see any stored prescriptions for this patient yet.",
+                "reason": "The message asked for the current prescription list.",
+                "execution_plan": [
+                    "Look up stored prescriptions from the patient workspace.",
+                ],
+            }
+
+        recent = prescriptions[:3]
+        summary = "; ".join(
+            f"{item.medication_name}{f' {item.dosage}' if item.dosage else ''}".strip()
+            for item in recent
+        )
+        return {
+            "message": f"Here are the latest stored prescriptions: {summary}.",
+            "reason": "The message asked for the current prescription list.",
+            "execution_plan": [
+                "Look up stored prescriptions from the patient workspace.",
+            ],
+        }
+
+    def _execute_drive_request(self, db: Session, patient_id: int, normalized: str) -> dict:
+        if self._is_drive_upload_request(normalized):
+            return {
+                "message": "I can upload to Drive when a file is attached, but chat and voice requests do not include a document payload yet.",
+                "reason": "Drive upload from conversation needs an attached file or explicit file path.",
+                "execution_plan": [
+                    "Explain that Drive upload needs an attached file or explicit document reference.",
+                ],
+            }
+
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        if not patient or not patient.google_access_token:
+            return {
+                "message": "I can check Drive after Google Drive is connected for this patient.",
+                "reason": "Drive listing requires stored Google OAuth tokens.",
+                "execution_plan": [
+                    "Ask the user to connect Google Drive before browsing files.",
+                ],
+            }
+
+        creds = credentials_from_tokens(
+            access_token=patient.google_access_token,
+            refresh_token=patient.google_refresh_token,
+        )
+        files = self.integrations.list_drive_files(credentials=creds, max_results=5)
+        prescription_links = db.scalars(
+            select(Prescription)
+            .where(Prescription.patient_id == patient_id, Prescription.document_drive_file_url.is_not(None))
+            .order_by(Prescription.created_at.desc())
+        ).all()
+
+        details: list[str] = []
+        if files:
+            file_summary = "; ".join(item.get("name", "Unnamed file") for item in files[:3])
+            details.append(f"Recent Drive files: {file_summary}.")
+        if prescription_links:
+            prescription_summary = "; ".join(
+                f"{item.medication_name}: {item.document_drive_file_url}"
+                for item in prescription_links[:2]
+            )
+            details.append(f"Prescription docs: {prescription_summary}.")
+
+        if not details:
+            details.append("I checked Drive, but I didn’t find recent accessible files or stored prescription documents.")
+
+        return {
+            "message": " ".join(details),
+            "reason": "The message requested Drive access or Drive-backed prescription references.",
+            "execution_plan": [
+                "Query recent accessible files from the connected Google Drive account.",
+                "Cross-reference stored prescription documents with Drive links in the patient workspace.",
+            ],
+        }
+
+    @staticmethod
+    def _is_calendar_request(normalized: str) -> bool:
+        schedule_terms = ("book", "schedule", "set up", "create")
+        appointment_terms = ("appointment", "follow-up", "doctor visit", "calendar event", "meeting")
+        return any(term in normalized for term in schedule_terms) and any(term in normalized for term in appointment_terms)
+
+    @staticmethod
+    def _is_health_email_list_request(normalized: str) -> bool:
+        email_terms = ("email", "emails", "gmail", "inbox", "mail")
+        lookup_terms = ("check", "show", "list", "read", "recent", "latest")
+        return any(term in normalized for term in email_terms) and any(term in normalized for term in lookup_terms)
+
+    @staticmethod
+    def _is_send_email_request(normalized: str) -> bool:
+        return ("send" in normalized or "email" in normalized) and ("@" in normalized or "mail to" in normalized)
+
+    @staticmethod
+    def _is_escalation_request(normalized: str) -> bool:
+        escalation_terms = ("escalate", "handoff", "send to doctor", "doctor review", "send doctor")
+        return any(term in normalized for term in escalation_terms)
+
+    @staticmethod
+    def _is_drive_request(normalized: str) -> bool:
+        drive_terms = ("drive", "upload", "save file", "save to google drive", "google drive", "drive files", "drive documents")
+        return any(term in normalized for term in drive_terms)
+
+    @staticmethod
+    def _is_drive_upload_request(normalized: str) -> bool:
+        upload_terms = ("upload", "save file", "save to google drive")
+        return any(term in normalized for term in upload_terms)
+
+    @staticmethod
+    def _is_prescription_lookup_request(normalized: str) -> bool:
+        prescription_terms = ("prescription", "prescriptions", "medication list", "medicine list", "current meds", "current medication")
+        lookup_terms = ("what", "show", "list", "check", "review", "current")
+        return any(term in normalized for term in prescription_terms) and any(term in normalized for term in lookup_terms)
 
     def route_medical_input(self, patient_id: int, query_text: str | None = None, file_path: str | None = None) -> dict:
         profile = self.brain_gateway.get_patient_profile(patient_id)

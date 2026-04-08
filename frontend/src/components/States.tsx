@@ -2,7 +2,7 @@ import { RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 
 export function LoadingState() {
   return (
-    <div className="nurture-card w-full flex min-h-[clamp(22rem,58vh,40rem)] flex-col items-center justify-center gap-4 text-center">
+    <div className="nurture-card w-full h-full flex min-h-[clamp(22rem,58vh,40rem)] flex-col items-center justify-center gap-4 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed/40 text-primary">
         <RefreshCw className="h-6 w-6 animate-spin" />
       </div>
@@ -18,7 +18,7 @@ export function LoadingState() {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="nurture-card w-full flex min-h-[clamp(22rem,58vh,40rem)] flex-col items-center justify-center gap-4 text-center">
+    <div className="nurture-card w-full h-full flex min-h-[clamp(22rem,58vh,40rem)] flex-col items-center justify-center gap-4 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary-container/35 text-secondary">
         <TriangleAlert className="h-6 w-6" />
       </div>
@@ -37,7 +37,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="nurture-card w-full flex min-h-[clamp(20rem,42vh,30rem)] flex-col items-center justify-center gap-3 text-center">
+    <div className="nurture-card w-full h-full flex min-h-[clamp(20rem,42vh,30rem)] flex-col items-center justify-center gap-3 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-tertiary-container/20 text-tertiary">
         <Sparkles className="h-6 w-6" />
       </div>

@@ -30,13 +30,13 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface relative overflow-hidden">
+    <div className="cq-app-frame flex min-h-screen w-full flex-col bg-surface text-on-surface relative overflow-x-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(213,235,170,0.32),transparent_32%),radial-gradient(circle_at_15%_55%,rgba(253,179,143,0.15),transparent_24%)]" />
       <div className="pointer-events-none absolute right-[-7rem] top-[-4rem] h-80 w-80 rounded-full bg-primary-fixed/25 blur-3xl" />
       <div className="pointer-events-none absolute left-[-6rem] top-[38%] h-72 w-72 rounded-full bg-tertiary-container/12 blur-3xl" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-6 pb-28 pt-6 md:px-8 md:pb-10 xl:px-10 2xl:px-12">
-        <header className="glass mb-8 flex items-center justify-between rounded-[2rem] px-6 py-4 shadow-[0_12px_32px_-4px_rgba(27,28,21,0.06)] md:px-8">
+      <div className="cq-app-inner relative z-10 grid min-h-screen w-full grid-rows-[auto_minmax(0,1fr)] px-6 pb-28 pt-6 md:px-8 md:pb-10 lg:px-10 2xl:px-12">
+        <header className="glass mb-8 flex min-w-0 items-center justify-between rounded-[2rem] px-6 py-4 shadow-[0_12px_32px_-4px_rgba(27,28,21,0.06)] md:px-8">
           <div className="flex items-center gap-4">
             <div className="flex h-13 w-13 items-center justify-center rounded-[1.45rem] bg-gradient-to-br from-primary to-primary-container text-surface shadow-[0_10px_22px_-6px_rgba(83,100,49,0.45)]">
               <Sparkles className="h-5 w-5" />
@@ -60,8 +60,8 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        <div className="grid flex-1 gap-8 xl:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="hidden lg:flex lg:flex-col">
+        <div className="grid min-h-0 min-w-0 gap-8 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="hidden min-w-0 lg:flex lg:flex-col">
             <div className="glass flex h-full flex-col rounded-[2rem] px-5 py-6 shadow-[0_12px_32px_-4px_rgba(27,28,21,0.06)]">
               <div className="mb-9 px-2">
                 <h2 className="font-serif text-[1.2rem] text-primary">Nurturing Navigation</h2>
@@ -97,7 +97,7 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
           </aside>
 
-          <main className="min-w-0 w-full">{children}</main>
+          <main className="min-h-0 min-w-0 w-full">{children}</main>
         </div>
       </div>
 

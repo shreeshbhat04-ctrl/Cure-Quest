@@ -11,7 +11,8 @@ from cure_quest.adapters.medical_memory import MedicalMemoryAdapter
 from cure_quest.adapters.openfda import OpenFDAAdapter
 from cure_quest.adapters.pharmacy import PharmacySearchAdapter
 from cure_quest.adapters.speech import GoogleSpeechAdapter
-from cure_quest.db.models import EscalationCase, Prescription
+from cure_quest.db.models import EscalationCase, Patient, Prescription
+from cure_quest.services.google_workspace import credentials_from_tokens
 from cure_quest.services.huggingface_medical import HuggingFaceMedicalService
 from cure_quest.services.image_classifier import ImageClassifierService, CATEGORY_FOLDER_MAP
 
@@ -45,6 +46,15 @@ class IntegrationAgent:
                 time.sleep(delay_seconds)
         raise last_error or RuntimeError("Unknown integration retry failure.")
 
+    def _get_patient_google_credentials(self, db: Session, patient_id: int):
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        if not patient or not patient.google_access_token:
+            return None
+        return credentials_from_tokens(
+            access_token=patient.google_access_token,
+            refresh_token=patient.google_refresh_token,
+        )
+
     def upload_document(
         self,
         db: Session,
@@ -53,8 +63,8 @@ class IntegrationAgent:
         mime_type: str,
         prescription_id: int | None = None,
     ) -> dict:
-        _ = patient_id
         settings = self.drive.settings
+        patient_credentials = self._get_patient_google_credentials(db, patient_id)
 
         # --- AI-powered image classification & subfolder routing ---
         image_category: str | None = None
@@ -73,6 +83,7 @@ class IntegrationAgent:
                     self.drive.get_or_create_subfolder,
                     parent_folder_id=settings.google_drive_folder_id,
                     folder_name=subfolder_name,
+                    credentials=patient_credentials,
                 )
             except Exception:
                 logger.exception("Failed to resolve subfolder — uploading to root folder")
@@ -83,6 +94,7 @@ class IntegrationAgent:
             file_path=file_path,
             mime_type=mime_type,
             folder_id=target_folder_id,
+            credentials=patient_credentials,
         )
 
         # Attach the classification result to the response.
@@ -106,12 +118,13 @@ class IntegrationAgent:
         duration_minutes: int,
         escalation_case_id: int | None = None,
     ) -> dict:
-        _ = patient_id
+        patient_credentials = self._get_patient_google_credentials(db, patient_id)
         result = self._with_retry(
             self.calendar.create_demo_event,
             summary=summary,
             minutes_from_now=minutes_from_now,
             duration_minutes=duration_minutes,
+            credentials=patient_credentials,
         )
         if escalation_case_id is not None:
             case = db.scalar(select(EscalationCase).where(EscalationCase.id == escalation_case_id))
@@ -134,6 +147,17 @@ class IntegrationAgent:
 
     def lookup_drug_label(self, medication_name: str) -> dict:
         return self._with_retry(self.openfda.lookup_drug_label, medication_name)
+
+    def list_drive_files(self, credentials=None, max_results: int = 5) -> list[dict]:
+        try:
+            return self._with_retry(
+                self.drive.list_accessible_files,
+                page_size=max_results,
+                credentials=credentials,
+            )
+        except Exception as error:
+            logger.error("Drive list failed: %s", error)
+            return []
 
     def search_nearby_pharmacies(self, location_query: str) -> dict:
         return self._with_retry(self.pharmacy.search_nearby_pharmacies, location_query)
@@ -260,4 +284,3 @@ class IntegrationAgent:
         except Exception as error:
             logger.error("Gmail send failed: %s", error)
             return {"sent": False, "message_id": None, "error": str(error)}
-

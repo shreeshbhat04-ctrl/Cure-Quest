@@ -32,9 +32,40 @@
     font-size: 15px;
   }
 
+  html,
+  body {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+    margin: 0;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    min-width: 0;
+  }
+
+  /* Defensive shell: avoids rare flex/% width collapse in nested layouts */
+  .cq-app-frame {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .cq-app-inner {
+    width: 100%;
+    min-width: 0;
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+  }
+
   body {
     @apply bg-surface text-on-surface font-sans antialiased;
     line-height: 1.7;
+    overflow-x: hidden;
   }
 
   * {

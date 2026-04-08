@@ -3,6 +3,7 @@ from pathlib import Path
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from google.oauth2.credentials import Credentials
 
 from cure_quest.config import get_settings
 from cure_quest.services.google_workspace import get_google_credentials
@@ -18,20 +19,20 @@ class GoogleDriveAdapter:
         # In-memory cache: (parent_id, folder_name) -> folder_id
         self._folder_cache: dict[tuple[str, str], str] = {}
 
-    def _service(self):
-        creds = get_google_credentials(DRIVE_SCOPES, self.settings.google_drive_token_file)
+    def _service(self, credentials: Credentials | None = None):
+        creds = credentials or get_google_credentials(DRIVE_SCOPES, self.settings.google_drive_token_file)
         return build("drive", "v3", credentials=creds)
 
-    def list_accessible_files(self, page_size: int = 10) -> list[dict]:
-        service = self._service()
+    def list_accessible_files(self, page_size: int = 10, credentials: Credentials | None = None) -> list[dict]:
+        service = self._service(credentials)
         response = (
             service.files()
-            .list(pageSize=page_size, fields="files(id,name,mimeType,modifiedTime)")
+            .list(pageSize=page_size, fields="files(id,name,mimeType,modifiedTime,webViewLink)")
             .execute()
         )
         return response.get("files", [])
 
-    def get_or_create_subfolder(self, parent_folder_id: str, folder_name: str) -> str:
+    def get_or_create_subfolder(self, parent_folder_id: str, folder_name: str, credentials: Credentials | None = None) -> str:
         """Return the Drive folder ID for *folder_name* under *parent_folder_id*.
 
         If the subfolder already exists it is reused; otherwise it is created.
@@ -41,7 +42,7 @@ class GoogleDriveAdapter:
         if cache_key in self._folder_cache:
             return self._folder_cache[cache_key]
 
-        service = self._service()
+        service = self._service(credentials)
 
         # Search for an existing folder with this name under the parent.
         query = (
@@ -75,6 +76,7 @@ class GoogleDriveAdapter:
         file_path: str,
         mime_type: str = "application/octet-stream",
         folder_id: str | None = None,
+        credentials: Credentials | None = None,
     ) -> dict:
         """Upload a file to Google Drive.
 
@@ -84,7 +86,7 @@ class GoogleDriveAdapter:
             If provided, the file is uploaded into this specific folder.
             Otherwise falls back to the global ``GOOGLE_DRIVE_FOLDER_ID``.
         """
-        service = self._service()
+        service = self._service(credentials)
         path = Path(file_path)
         metadata: dict[str, object] = {"name": path.name}
 

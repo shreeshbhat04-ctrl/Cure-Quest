@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from cure_quest.adapters.ticketing import RoutineTask
 from cure_quest.adapters.notifications import MockNotificationAdapter
 from cure_quest.services.brain import BrainCondition, BrainPatientProfile
+from cure_quest.services.huggingface_medical import HuggingFaceMedicalService
 from cure_quest.services.model_routing import ModelRoutingService
 from cure_quest.db.models import Notification
 
@@ -11,6 +12,7 @@ class CommunicationsAgent:
     def __init__(self, notification_adapter: MockNotificationAdapter | None = None) -> None:
         self.notification_adapter = notification_adapter or MockNotificationAdapter()
         self.model_routing = ModelRoutingService()
+        self.medical_generation = HuggingFaceMedicalService()
 
     def notify(self, db: Session, patient_id: int, channel: str, message_type: str, message_body: str) -> Notification:
         result = self.notification_adapter.send(channel=channel, message_body=message_body)
@@ -48,10 +50,8 @@ class CommunicationsAgent:
         
         # Actually generate the response using Gemini
         try:
-            from google import genai
             from cure_quest.config import get_settings
             settings = get_settings()
-            client = genai.Client(api_key=settings.google_api_key)
             system_instruction = (
                 "You are an empathetic, calm, and highly capable medical assistant named Cure-Quest Copilot. "
                 "Keep responses concise, conversational, and friendly (1-2 short sentences max). "
@@ -59,15 +59,11 @@ class CommunicationsAgent:
             if profile:
                 system_instruction += f"\nThe patient's name is {profile.full_name}. Summary: {profile.summary}"
 
-            response = client.models.generate_content(
-                model=route["primary_model"],
-                contents=message,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.7,
-                )
-            )
-            generated_message = response.text.strip()
+            if route["primary_model"] == settings.medgemma_model_id:
+                response_payload = self.medical_generation.medgemma_generate(prompt=message, max_new_tokens=220)
+                generated_message = self._extract_generated_text(response_payload.get("result"))
+            else:
+                generated_message = self._generate_gemini_text(message=message, system_instruction=system_instruction)
         except Exception as e:
             generated_message = f"I'm here for you! I heard: {message} (But my generative engine hit an error: {e})"
 
@@ -80,3 +76,37 @@ class CommunicationsAgent:
             "suggested_response_style": "calm, reassuring, and patient-friendly",
             "execution_plan": route["execution_plan"],
         }
+
+    def _generate_gemini_text(self, message: str, system_instruction: str) -> str:
+        from google import genai
+        from cure_quest.config import get_settings
+
+        settings = get_settings()
+        client = genai.Client(api_key=settings.google_api_key)
+        last_error: Exception | None = None
+
+        for model_id in settings.gemini_fast_model_candidates:
+            try:
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=message,
+                    config=genai.types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.7,
+                    ),
+                )
+                return (response.text or "").strip()
+            except Exception as error:
+                last_error = error
+
+        raise last_error or RuntimeError("Gemini generation failed.")
+
+    @staticmethod
+    def _extract_generated_text(result: object) -> str:
+        if isinstance(result, dict) and isinstance(result.get("text"), str):
+            return result["text"].strip()
+        if isinstance(result, list):
+            return str(result)
+        if isinstance(result, dict):
+            return str(result)
+        return "" if result is None else str(result)

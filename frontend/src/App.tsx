@@ -59,7 +59,9 @@ function AuthenticatedApp({ patientId: initialPatientId }: { patientId: number }
       loading={loading}
     >
       <AnimatePresence mode="wait">
-        <div key={activeTab}>{renderScreen()}</div>
+        <div key={activeTab} className="min-w-0 w-full">
+          {renderScreen()}
+        </div>
       </AnimatePresence>
       <ChatAssistant patientId={patientId} />
       <VoiceAssistant patientId={patientId} />

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Square, Loader2, X } from 'lucide-react';
+import { Mic, Square, Loader2, X, Volume2 } from 'lucide-react';
 import { sendVoiceNote, type ConversationResponse } from '../lib/api';
 import { Pill } from './ui';
 
@@ -16,6 +16,13 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ patientId }) => 
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  const getVoiceStatus = () => {
+    if (error) return 'Voice request failed';
+    if (!aiResponse) return '';
+    if (aiResponse.audio_base64) return 'Response spoken aloud';
+    return 'Voice response ready';
+  };
 
   const startRecording = async () => {
     try {
@@ -104,9 +111,10 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ patientId }) => 
               </button>
             </div>
             
-            <p className="text-[0.95rem] leading-7 text-on-surface/85">
-              {error ? error : aiResponse?.message}
-            </p>
+            <div className="flex items-center gap-2 text-[0.95rem] text-on-surface/80">
+              {!error ? <Volume2 className="h-4 w-4 text-primary" /> : null}
+              <p className="leading-7">{error ? error : getVoiceStatus()}</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

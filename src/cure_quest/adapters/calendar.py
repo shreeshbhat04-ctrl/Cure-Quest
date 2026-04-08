@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
 from cure_quest.config import get_settings
 from cure_quest.services.google_workspace import get_google_credentials
@@ -12,12 +13,12 @@ class GoogleCalendarAdapter:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def _service(self):
-        creds = get_google_credentials(CALENDAR_SCOPES, self.settings.google_calendar_token_file)
+    def _service(self, credentials: Credentials | None = None):
+        creds = credentials or get_google_credentials(CALENDAR_SCOPES, self.settings.google_calendar_token_file)
         return build("calendar", "v3", credentials=creds)
 
-    def list_upcoming_events(self, max_results: int = 10) -> list[dict]:
-        service = self._service()
+    def list_upcoming_events(self, max_results: int = 10, credentials: Credentials | None = None) -> list[dict]:
+        service = self._service(credentials)
         response = (
             service.events()
             .list(
@@ -31,8 +32,14 @@ class GoogleCalendarAdapter:
         )
         return response.get("items", [])
 
-    def create_demo_event(self, summary: str, minutes_from_now: int = 30, duration_minutes: int = 30) -> dict:
-        service = self._service()
+    def create_demo_event(
+        self,
+        summary: str,
+        minutes_from_now: int = 30,
+        duration_minutes: int = 30,
+        credentials: Credentials | None = None,
+    ) -> dict:
+        service = self._service(credentials)
         start = datetime.utcnow() + timedelta(minutes=minutes_from_now)
         end = start + timedelta(minutes=duration_minutes)
         event = {
