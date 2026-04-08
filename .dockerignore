@@ -15,3 +15,6 @@ tests
 docs
 alloydb-auth-proxy-x64.exe
 pytest-cache-files-5vgo5__v
+.env
+.env.*
+cloudrun.env
