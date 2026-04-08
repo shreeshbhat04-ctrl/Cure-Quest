@@ -1,7 +1,8 @@
 # Cure-Quest
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
-# ** Cloud run api end point for testing **: https://cure-quest-api-315569715049.us-central1.run.app
+# **Cloud run api end point for testing**:    
+https://cure-quest-api-315569715049.us-central1.run.app
 
 ## Demo Story — Shreesha's Care Journey
 
