@@ -332,27 +332,8 @@ Mitigation: interface contracts and dependency injection in services/adapters.
 - Introduce stronger event-driven backbone for integration fan-out
 - Add compliance-ready audit package and retention policy controls
 
-## 16. UI Wireframe Prompt Pack
 
-Use these prompts with Midjourney, Imagen, or equivalent image generation tools to produce concept wireframes aligned with Cure-Quest architecture and the Digital Sanctuary visual system.
-
-### Prompt A: Voice Conversation Screen
-
-Design a healthcare web app voice assistant screen for Cure-Quest. Warm sanctuary aesthetic, cream and sage palette, serif headlines and geometric sans body text, glassmorphism top bar, soft asymmetrical cards, no hard divider lines. Include waveform recording area, transcript panel, AI response card, and model badge showing Gemini. Show state transitions for recording, transcribing, and speaking. Mobile and desktop responsive composition. High-fidelity product wireframe, realistic spacing, clear hierarchy, medically calm tone.
-
-### Prompt B: Medication Hub and Document Upload
-
-Design a medication management dashboard for Cure-Quest. Show drag-and-drop prescription upload card, upload progress states, AI classification tags, medication list with dosage and confidence, and drug safety check panel. Include integrations context chips for Drive, OpenFDA, and clinical model routing. Earth-toned editorial interface with rounded surfaces, tonal depth instead of borders, subtle ambient shadows, intentional asymmetry. Present both default and success states in one composition.
-
-### Prompt C: HITL Clinical Review Workspace
-
-Design a human-in-the-loop clinical review interface for Cure-Quest. Include patient profile summary, active conditions timeline, medications with days-on-medication, AI analysis panel, recommended actions, and doctor escalation CTA. Include trust indicators, audit metadata strip, and reminder scheduling widget. Style should be premium healthcare editorial, warm neutrals with terracotta accents, soft motion cues implied by layered cards. Responsive desktop-first UI with supporting mobile view inset.
-
-### Prompt D: System Architecture Poster
-
-Create a clean architecture poster diagram for Cure-Quest showing React frontend, FastAPI backend, orchestrator layer, specialist agents, MCP server, AlloyDB brain, and external integrations (Drive, Calendar, Gmail, STT/TTS, OpenFDA, BigQuery, HuggingFace, Gemini). Use modern technical infographic style, clear directional arrows, grouped zones, and concise labels. White or warm-neutral background, readable typography, professional conference-slide quality.
-
-## 17. Quick Reference
+## 16. Quick Reference
 
 Primary runtime entrypoints:
 

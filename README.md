@@ -1,6 +1,8 @@
 # Cure-Quest
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
+# **Cloud run api end point for testing**:    
+https://cure-quest-api-315569715049.us-central1.run.app
 
 ## Demo Story — Shreesha's Care Journey
 
@@ -23,15 +25,15 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   React Frontend                     │
+│                   React Frontend                    │
 │  Login → Dashboard → Care Maze → Meds → HITL        │
-│  Voice Assistant │ Chat Assistant │ File Upload       │
+│  Voice Assistant │ Chat Assistant │ File Upload     │
 └──────────────────────┬──────────────────────────────┘
                        │ REST API
 ┌──────────────────────┴──────────────────────────────┐
-│                  FastAPI Backend                      │
-│                                                      │
-│  ┌─────────────┐  ┌────────────┐  ┌──────────────┐  │
+│                  FastAPI Backend                     │
+│                                                      │ 
+│  ┌─────────────┐  ┌────────────┐  ┌──────────────┐   │
 │  │ Orchestrator │──│ Intake     │  │ Formulary    │  │
 │  │              │  │ Agent      │  │ Agent        │  │
 │  │   routes &   │  ├────────────┤  ├──────────────┤  │
@@ -42,9 +44,9 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 │  └──────┬───────┘  └────────────┘  └──────────────┘  │
 │         │                                            │
 │  ┌──────┴──────────────────────────────────────────┐ │
-│  │              Integration Agent                   │ │
-│  │  Drive │ Calendar │ Gmail │ Speech │ BigQuery    │ │
-│  │  OpenFDA │ Pharmacy │ MedSigLIP │ MedGemma     │ │
+│  │              Integration Agent                  │ │
+│  │  Drive │ Calendar │ Gmail │ Speech │ BigQuery   │ │
+│  │  OpenFDA │ Pharmacy │ MedSigLIP │ MedGemma      │ │
 │  └──────┬──────────────────────────────────────────┘ │
 └─────────┼────────────────────────────────────────────┘
           │
