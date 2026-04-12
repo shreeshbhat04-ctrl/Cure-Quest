@@ -1,6 +1,6 @@
 # Cloud Run Deployment
 
-This repo is prepared to deploy the FastAPI backend to Google Cloud Run.
+This repository is prepared to deploy the FastAPI backend to Google Cloud Run.
 
 ## What is included
 
@@ -18,7 +18,7 @@ This repo is prepared to deploy the FastAPI backend to Google Cloud Run.
 
 ## Required environment variables
 
-At minimum, configure:
+At a minimum, configure:
 
 - `APP_ENV=production`
 - `DATABASE_URL`
@@ -68,7 +68,7 @@ gcloud run services update cure-quest-api `
   --update-secrets "GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GOOGLE_OAUTH_CLIENT_SECRET=GOOGLE_OAUTH_CLIENT_SECRET:latest"
 ```
 
-You can also set non-secret values in the Cloud Run console.
+You can also set non-secret values in the Cloud Run Console.
 
 ## Frontend deployment
 

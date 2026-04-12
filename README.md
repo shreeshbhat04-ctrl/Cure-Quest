@@ -1,15 +1,15 @@
 # Cure-Quest
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
-# **Cloud run api end point for testing**:    
+## Cloud Run API endpoint (for testing)
 https://cure-quest-api-315569715049.us-central1.run.app
 
 ## Demo Story — Shreesha's Care Journey
 
 Shreesha is a 22-year-old patient managing two chronic conditions simultaneously:
 
-- **Atopic Eczema** (moderate-severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate
-- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500mg twice daily
+- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate
+- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily
 
 The platform demonstrates how Cure-Quest coordinates care across multiple dimensions:
 
@@ -98,6 +98,8 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - AlloyDB instance (or use SQLite for local dev)
 
 ### 1. Backend Setup
+
+Commands below are shown in PowerShell.
 
 ```powershell
 # Create virtual environment
