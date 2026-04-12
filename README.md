@@ -77,6 +77,14 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - [Wiring Checklist](docs/WIRING_CHECKLIST.md)
 - [Cloud Run Deployment](docs/CLOUD_RUN_DEPLOYMENT.md)
 - [Design System Specification](DESIGN.md)
+- [Implementation Metrics + Conversation Content](docs/CURE_QUEST_IMPLEMENTATION_METRICS_TRANSCRIPT.md)
+
+### Implementation Metrics Snapshot
+
+- Quantization planning target: **NF4 ~2.5 GB** vs **FP16 ~8.0 GB** (~69% reduction estimate).
+- QLoRA planning footprint: **~6.5 GB** vs **~64 GB** full fine-tuning (~90% reduction estimate).
+- Throughput projection on T4: **~52 tok/s** with NF4 + Unsloth (vs ~22 tok/s FP16 baseline).
+- Feature-goal framing includes side effects, diet interaction safety, diagnostic quality, image grounding, and HITL confidence gating.
 
 ---
 
