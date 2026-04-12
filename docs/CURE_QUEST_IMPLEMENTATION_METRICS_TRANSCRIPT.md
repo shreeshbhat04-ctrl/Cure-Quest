@@ -170,7 +170,7 @@ so keeping this in mind and the core essential features such as diet, side effec
 **Phase 4 — ADK integration, HITL hookup, demo prep (Days 12–14)**
 - Day 12: Wire adapters into ADK via PEFT
 - Day 13: Asana MCP HITL — logprob <0.7 → doctor review task
-- Day 14: End-to-end demo — image upload → SigLIP → diagnostic adapter → HITL if flagged
+- Day 14: End-to-end demo — image upload → MedSigLIP → diagnostic adapter → HITL if flagged
 
 **Per-feature quantification targets:**
 
@@ -225,10 +225,10 @@ Got it — MedSigLIP and MedGemma are sequential, not concurrent.
 
 **Sequential pipeline:**
 ```
-image → SigLIP encode (1.6 GB peak, ~50ms) → embedding → MedGemma NF4 decode (2.5 GB peak, ~200–400ms)
+image → MedSigLIP encode (1.6 GB peak, ~50ms) → embedding → MedGemma NF4 decode (2.5 GB peak, ~200–400ms)
 ```
 
-True peak VRAM is ~2.5 GB, not 4.1 GB — the 4.1 GB figure was a conservative concurrent-load estimate. SigLIP stays frozen so you don't even load it during QLoRA training — only at inference time for the diagnostic agent path. Effective working VRAM budget: under 4 GB at any point, ~12 GB free for KV cache and long context.
+True peak VRAM is ~2.5 GB, not 4.1 GB — the 4.1 GB figure was a conservative concurrent-load estimate. MedSigLIP stays frozen so you don't even load it during QLoRA training — only at inference time for the diagnostic agent path. Effective working VRAM budget: under 4 GB at any point, ~12 GB free for KV cache and long context.
 
 ## Shreesha
 
@@ -252,7 +252,7 @@ What are the exact deliverables for Phase 1 of Cure-Quest?
    - Same CSV structure
    - Flag false-safe outputs — model says "no interaction" but ground truth says otherwise. These are the critical failures.
 
-4. **Run 5 image inputs through SigLIP → MedGemma**
+4. **Run 5 image inputs through MedSigLIP → MedGemma**
    - Done when: pipeline runs end-to-end without error
    - Log whether image embedding was cited in response text
    - Use 2 chest X-rays, 2 derm images, 1 OCT scan
@@ -280,7 +280,7 @@ What are the exact deliverables for Phase 1 of Cure-Quest?
 
 9. **Go/no-go gate** *(most important deliverable)*
    - If zero-shot baseline already >70% on any feature → adapter ROI is low, narrow scope to weak feature
-   - If image pipeline fails end-to-end → fix before Phase 2. Fix: add `"The following image features were extracted: {sigLIP_caption}. Use these in your reasoning."` to system prompt
+   - If image pipeline fails end-to-end → fix before Phase 2. Fix: add `"The following image features were extracted: {medsiglip_caption}. Use these in your reasoning."` to system prompt
 
 ## Shreesha
 
