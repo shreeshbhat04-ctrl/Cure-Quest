@@ -1,6 +1,6 @@
 # Cure-Quest Wiring Checklist
 
-This checklist is the practical setup guide for API, ADK web, MCP, and AlloyDB.
+This checklist is a practical setup guide for API, ADK web, MCP, and AlloyDB.
 
 It intentionally excludes:
 
@@ -11,7 +11,7 @@ It intentionally excludes:
 
 ## 1. Environment variables
 
-Use `.env` as the single local source of truth.
+Use `.env` as your single local source of truth.
 
 ### Required now
 
@@ -102,7 +102,7 @@ Use SQLite while shaping the contracts.
 
 ### AlloyDB phase
 
-Move to AlloyDB once API + MCP contracts are stable.
+Move to AlloyDB once API and MCP contracts are stable.
 
 Recommended steps:
 
@@ -150,7 +150,7 @@ Run from the repo root:
 .\.venv\Scripts\adk.exe web --port 8001 .\adk_agents
 ```
 
-### Correct expected UI shape
+### Correct expected UI view
 
 You should see one selectable ADK package:
 

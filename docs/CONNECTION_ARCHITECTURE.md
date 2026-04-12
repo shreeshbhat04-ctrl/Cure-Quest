@@ -1,6 +1,6 @@
 # Cure-Quest Connection Architecture
 
-This document focuses only on infrastructure and external connection wiring for Cure-Quest.
+This document focuses on infrastructure and external connection wiring for Cure-Quest.
 
 Out of scope for this phase:
 
@@ -9,7 +9,7 @@ Out of scope for this phase:
 - agent trigger rules
 - workflow automation depth
 
-The goal here is to make every external connection path explicit so implementation can proceed safely.
+The goal is to make every external connection path explicit so implementation can proceed safely.
 
 ## 1. Core runtime surfaces
 
@@ -127,7 +127,7 @@ Required external connections:
 Important note:
 
 - ADK web should point to `adk_agents`, not `src/cure_quest`
-- otherwise normal app folders are incorrectly treated as agents
+- Otherwise, normal app folders are incorrectly treated as agents
 
 ### Local MCP server
 
@@ -234,7 +234,7 @@ Recommended local progression:
 
 ## 6. External integrations to wire after the core stack
 
-These should be treated as separate workstreams after API, ADK, MCP, and AlloyDB are stable.
+Treat these as separate workstreams after API, ADK, MCP, and AlloyDB are stable.
 
 ### Notifications
 
@@ -285,7 +285,7 @@ Current state:
 
 - not wired yet
 
-## 7. Minimum “all core connections are working” definition
+## 7. Minimum "all core connections are working" definition
 
 You can consider the infrastructure phase complete when all of these are true:
 

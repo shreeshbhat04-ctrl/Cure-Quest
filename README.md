@@ -1,15 +1,15 @@
 # Cure-Quest
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
-# **Cloud run api end point for testing**:    
+## Cloud Run API endpoint (for testing)
 https://cure-quest-api-315569715049.us-central1.run.app
 
 ## Demo Story — Shreesha's Care Journey
 
 Shreesha is a 22-year-old patient managing two chronic conditions simultaneously:
 
-- **Atopic Eczema** (moderate-severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate
-- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500mg twice daily
+- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate
+- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily
 
 The platform demonstrates how Cure-Quest coordinates care across multiple dimensions:
 
@@ -86,6 +86,15 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - Throughput projection target on T4: **~52 tok/s** with NF4 + Unsloth (vs ~22 tok/s FP16 baseline).
 - Feature-goal framing includes side effects, diet interaction safety, diagnostic quality, image grounding, and HITL confidence gating.
 
+### Adapter Notebook Highlights (medical_input_for_adapter.ipynb)
+
+- The medicine adapter dataset profile covers **176,169** normalized records after price cleanup, giving broad medication coverage for agent lookups.
+- Side-effect extraction is now treated as a first-class adapter capability, with frequent patterns such as vomiting, nausea, diarrhea, abdominal pain, rash, and headache available for downstream safety summaries.
+- The adapter pipeline now exposes an explicit interaction-coverage signal: **~61.16%** of records have empty interaction payloads, so the agent can flag uncertainty and prefer HITL escalation or external validation when interaction evidence is sparse.
+- This adapter technique improves safe side-effect guidance by separating:
+  - what the model can confidently summarize from observed side-effect patterns, and
+  - where interaction data is incomplete and needs conservative handling.
+
 ---
 
 ## Quick Start
@@ -98,6 +107,8 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - AlloyDB instance (or use SQLite for local dev)
 
 ### 1. Backend Setup
+
+Commands below are shown in PowerShell.
 
 ```powershell
 # Create virtual environment

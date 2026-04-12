@@ -231,6 +231,21 @@ This map links major user capabilities to backend route groups.
 | Reminders and scheduling | Patient and calendar APIs | /patient/reminders, /calendar/events |
 | Workspace and communications sync | Auth and Gmail APIs | /auth/google, /auth/google/status/{patient_id}, /gmail/* |
 
+## 8.1 Adapter-Derived Agent Capabilities (Notebook-Aligned)
+
+Using the `notebooks/medical_input_for_adapter.ipynb` profiling results, the medical adapter now emphasizes three practical runtime capabilities:
+
+1. Side-effect pattern grounding  
+The adapter can provide high-frequency adverse-effect context (for example GI symptoms, rash, headache, and application-site reactions) as structured support for patient-facing explanations.
+
+2. Interaction-coverage awareness  
+Because a significant share of records have empty interaction objects, the adapter surfaces a coverage signal rather than over-claiming certainty when interaction evidence is limited.
+
+3. Conservative escalation behavior  
+When interaction coverage is weak, orchestration should bias toward constrained guidance plus HITL review, reducing unsafe confidence in autonomous recommendations.
+
+These capabilities are adapter outcomes, not just model prompt behavior: the adapter layer determines what medical evidence is available, what is missing, and how reliability is communicated upstream.
+
 ## 9. Data Domains
 
 Key persistent entities include:
