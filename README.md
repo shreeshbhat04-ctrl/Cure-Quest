@@ -86,6 +86,15 @@ The platform demonstrates how Cure-Quest coordinates care across multiple dimens
 - Throughput projection target on T4: **~52 tok/s** with NF4 + Unsloth (vs ~22 tok/s FP16 baseline).
 - Feature-goal framing includes side effects, diet interaction safety, diagnostic quality, image grounding, and HITL confidence gating.
 
+### Adapter Notebook Highlights (medical_input_for_adapter.ipynb)
+
+- The medicine adapter dataset profile covers **176,169** normalized records after price cleanup, giving broad medication coverage for agent lookups.
+- Side-effect extraction is now treated as a first-class adapter capability, with frequent patterns such as vomiting, nausea, diarrhea, abdominal pain, rash, and headache available for downstream safety summaries.
+- The adapter pipeline now exposes an explicit interaction-coverage signal: **~61.16%** of records have empty interaction payloads, so the agent can flag uncertainty and prefer HITL escalation or external validation when interaction evidence is sparse.
+- This adapter technique improves safe side-effect guidance by separating:
+  - what the model can confidently summarize from observed side-effect patterns, and
+  - where interaction data is incomplete and needs conservative handling.
+
 ---
 
 ## Quick Start
