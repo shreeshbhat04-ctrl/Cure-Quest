@@ -28,6 +28,7 @@ class StubBrainGateway:
 class StubIntegrations:
     def __init__(self) -> None:
         self.events: list[tuple[str, dict]] = []
+        self.last_sent_email: dict | None = None
 
     def upload_document(self, **kwargs):
         _ = kwargs
@@ -53,7 +54,12 @@ class StubIntegrations:
         return [{"subject": "Lab report ready"}, {"subject": "Prescription update"}]
 
     def send_care_email(self, to: str, subject: str, body_html: str, credentials=None):
-        _ = subject, body_html, credentials
+        _ = credentials
+        self.last_sent_email = {
+            "to": to,
+            "subject": subject,
+            "body_html": body_html,
+        }
         return {"sent": True, "message_id": f"msg-for-{to}", "error": None}
 
     def list_drive_files(self, credentials=None, max_results: int = 5):
@@ -224,6 +230,53 @@ def test_route_conversation_can_read_drive_files_and_prescription_docs() -> None
     assert "Recent Drive files" in result["message"]
     assert "Prescription docs" in result["message"]
     assert "Prescription-April.pdf" in result["message"]
+
+
+def test_route_conversation_send_email_uses_professional_contextual_body() -> None:
+    init_database()
+    orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
+    orchestrator.integrations = StubIntegrations()
+    orchestrator.communications.build_conversation_plan = lambda message, profile=None: {  # type: ignore[method-assign]
+        "message": "I can handle that.",
+        "route_type": "general_conversation",
+        "primary_model": orchestrator.model_routing.settings.gemini_fast_model_id,
+        "support_model": None,
+        "reason": "General request detected.",
+        "suggested_response_style": "calm",
+        "execution_plan": ["Respond to the patient."],
+    }
+
+    with SessionLocal() as db:
+        patient = orchestrator.intake.intake_patient(
+            db,
+            PatientIntakeRequest(full_name="Asha Rao", preferred_language="en", active_conditions=["IBS"]),
+        )
+        patient.summary = "Recurring abdominal pain with intermittent nausea."
+        patient.google_access_token = "token"
+        patient.google_refresh_token = "refresh"
+        orchestrator.intake.scan_prescription(
+            db=db,
+            patient_id=patient.id,
+            image_reference=None,
+            raw_text_hint="Metformin 500 mg twice daily with meals",
+        )
+        db.commit()
+
+        result = orchestrator.route_conversation(
+            patient_id=patient.id,
+            message="Please send care summary to doctor@example.com about my current status",
+            db=db,
+        )
+
+    assert "I sent the care summary email" in result["message"]
+    sent_email = orchestrator.integrations.last_sent_email
+    assert sent_email is not None
+    assert sent_email["to"] == "doctor@example.com"
+    assert "Dear Care Team" in sent_email["body_html"]
+    assert "Patient Summary:" in sent_email["body_html"]
+    assert "Relevant Conditions:" in sent_email["body_html"]
+    assert "Recent Prescription History:" in sent_email["body_html"]
+    assert "Patient Request:" in sent_email["body_html"]
 
 
 def test_route_medical_input_uses_medsiglip_for_images() -> None:

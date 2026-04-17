@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -216,9 +217,12 @@ class Orchestrator:
             refresh_token=patient.google_refresh_token,
         )
         subject = f"Cure-Quest care summary for {patient_name or f'patient {patient_id}'}"
-        body_html = (
-            f"<p>Care summary for {patient_name or f'patient {patient_id}'}.</p>"
-            f"<p>Requested from chat/voice: {message}</p>"
+        body_html = self._build_professional_care_email(
+            db=db,
+            patient_id=patient_id,
+            patient_name=patient_name,
+            patient_summary=patient.summary,
+            message=message,
         )
         result = self.integrations.send_care_email(
             to=target_email,
@@ -241,6 +245,61 @@ class Orchestrator:
                 "Attempt to send the care summary through the connected Gmail integration.",
             ],
         }
+
+    def _build_professional_care_email(
+        self,
+        db: Session,
+        patient_id: int,
+        patient_name: str | None,
+        patient_summary: str | None,
+        message: str,
+    ) -> str:
+        conditions = self.temporal_memory.get_relevant_conditions(patient_id)
+        condition_names = [item.name for item in conditions if item.name][:3]
+        recent_prescriptions = db.scalars(
+            select(Prescription)
+            .where(Prescription.patient_id == patient_id)
+            .order_by(Prescription.created_at.desc())
+        ).all()[:3]
+
+        clean_request = re.sub(r"[\w.\-+]+@[\w.\-]+\.\w+", "[recipient]", message).strip()
+        recipient_name = patient_name or f"patient {patient_id}"
+        sent_on = datetime.now().strftime("%Y-%m-%d")
+
+        sections: list[str] = [
+            "<p>Dear Care Team,</p>",
+            (
+                f"<p>Please find a brief care update for <strong>{recipient_name}</strong> "
+                f"as of {sent_on}.</p>"
+            ),
+        ]
+
+        if patient_summary:
+            sections.append(f"<p><strong>Patient Summary:</strong> {patient_summary}</p>")
+
+        if condition_names:
+            sections.append(
+                "<p><strong>Relevant Conditions:</strong> "
+                + ", ".join(condition_names)
+                + "</p>"
+            )
+
+        if recent_prescriptions:
+            medication_summary = ", ".join(
+                f"{item.medication_name}{f' {item.dosage}' if item.dosage else ''}".strip()
+                for item in recent_prescriptions
+            )
+            sections.append(f"<p><strong>Recent Prescription History:</strong> {medication_summary}</p>")
+
+        sections.append(f"<p><strong>Patient Request:</strong> {clean_request}</p>")
+        sections.extend(
+            [
+                "<p>Please review and advise if any clinical follow-up is recommended.</p>",
+                "<p>Regards,<br>Cure-Quest Assistant</p>",
+                "<p><em>This message is generated from the patient support workflow for care coordination.</em></p>",
+            ]
+        )
+        return "".join(sections)
 
     def _execute_escalation(self, db: Session, patient_id: int, message: str) -> dict:
         case = self.hitl.create_case(db, patient_id, "doctor_review", message)
