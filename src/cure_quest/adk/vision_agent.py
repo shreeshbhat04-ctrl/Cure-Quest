@@ -1,8 +1,9 @@
 """Vision Agent – auto-classifies and analyses uploaded medical images.
 
 Uses the GeminiVisionService fallback chain (ImageClassifier → Gemini auto-detect)
-and communicates results to Recipe Agent and Comms Agent via A2A AgentTool protocol.
-Uploaded images are saved to Google Drive via the existing hierarchical adapter.
+and communicates results to Recipe Agent, Communication Agent, and Questioner Agent
+via A2A AgentTool protocol. Uploaded images are saved to Google Drive via the
+existing hierarchical adapter.
 """
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,8 @@ from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
 from cure_quest.config import get_settings
+from cure_quest.adk.communication_agent import communication_agent
+from cure_quest.adk.questioner_agent import questioner_agent
 from cure_quest.adk.recipe_agent import recipe_agent
 
 settings = get_settings()
@@ -40,7 +43,7 @@ vision_agent = LlmAgent(
     description=(
         "Analyses uploaded medical images (prescriptions, symptom photos, lab reports) "
         "using auto-classification with fallback. Saves to Drive and delegates to "
-        "downstream agents (Recipe, Comms) via A2A."
+        "downstream agents (Recipe, Communication, Questioner) via A2A."
     ),
     instruction=(
         "You are the Cure-Quest Vision Agent. Your role is to process uploaded medical images.\n\n"
@@ -64,8 +67,11 @@ vision_agent = LlmAgent(
         "   - If the analysis shows diet_relevant=true OR the prescription contains\n"
         "     diet-sensitive medications (Warfarin, Metformin, blood thinners, etc.),\n"
         "     delegate to **cure_quest_recipe_agent** for safe meal planning.\n"
-        "   - Always provide a patient-friendly summary of your findings.\n"
-        "   - If severity is Severe or Critical, flag for clinician escalation.\n\n"
+        "   - Delegate to **cure_quest_communication_agent** for patient-friendly summary\n"
+        "     composition whenever findings need to be communicated to the patient.\n"
+        "   - If severity is Severe or Critical, or doctor/action confirmation is needed,\n"
+        "     delegate to **cure_quest_questioner_agent** to ask which doctor should\n"
+        "     receive the escalation.\n\n"
         "6. RESPOND: Return a clear, structured summary including:\n"
         "   - What type of image was detected\n"
         "   - Key findings (including physical state tally like tablets consumed/present)\n"
@@ -75,5 +81,7 @@ vision_agent = LlmAgent(
     input_schema=VisionInput,
     tools=[
         AgentTool(agent=recipe_agent),
+        AgentTool(agent=communication_agent),
+        AgentTool(agent=questioner_agent),
     ],
 )

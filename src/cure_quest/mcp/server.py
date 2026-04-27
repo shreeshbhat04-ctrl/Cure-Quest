@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
+from urllib.parse import quote_plus
 
 from cure_quest.adapters.analytics import BigQueryAnalyticsAdapter
-from cure_quest.adapters.openfda import OpenFDAAdapter
 from cure_quest.db.session import SessionLocal
 from cure_quest.services.emergency import detect_emergency
 from cure_quest.services.brain import BrainService
@@ -9,7 +9,6 @@ from cure_quest.services.brain import BrainService
 mcp = FastMCP("CureQuestLocal", json_response=True)
 brain_service = BrainService()
 analytics_adapter = BigQueryAnalyticsAdapter()
-openfda_adapter = OpenFDAAdapter()
 
 
 @mcp.tool()
@@ -61,9 +60,28 @@ def analytics_log_event(event_type: str, payload: dict) -> dict:
 
 
 @mcp.tool()
-def drug_lookup_label(medication_name: str) -> dict:
-    """Lookup drug label details from openFDA."""
-    return openfda_adapter.lookup_drug_label(medication_name)
+def caremaze_search_link(query: str) -> dict[str, str]:
+    """Build a Google Maps search link for a care destination query."""
+    return {
+        "query": query,
+        "map_url": f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}",
+        "source_used": "mcp_link_builder",
+    }
+
+
+@mcp.tool()
+def caremaze_route_link(origin: str, destination: str) -> dict[str, str]:
+    """Build a Google Maps directions link for origin and destination labels."""
+    return {
+        "origin": origin,
+        "destination": destination,
+        "map_url": (
+            "https://www.google.com/maps/dir/?api=1"
+            f"&origin={quote_plus(origin)}"
+            f"&destination={quote_plus(destination)}"
+        ),
+        "source_used": "mcp_link_builder",
+    }
 
 
 

@@ -60,7 +60,7 @@ class ModelRoutingService:
                 "reason": "Fast conversational check-ins and patient-facing summaries.",
             },
             "hitl_agent": {
-                "primary_model": self.settings.medgemma_model_id,
+                "primary_model": self.settings.gemini_fast_model_id,
                 "reason": "Medical-detail report drafting and clinical summarization.",
             },
             "routine_agent": {
@@ -68,7 +68,7 @@ class ModelRoutingService:
                 "reason": "Lightweight planning over Asana-backed reminders and routines.",
             },
             "diet_pharmacy_agent": {
-                "primary_model": self.settings.medgemma_model_id,
+                "primary_model": self.settings.gemini_fast_model_id,
                 "reason": "Medication-aware diet logic and safe alternative reasoning.",
             },
             "document_agent": {
@@ -84,12 +84,11 @@ class ModelRoutingService:
         if medical:
             return {
                 "route_type": "medical_text",
-                "primary_model": self.settings.medgemma_model_id,
-                "support_model": self.settings.gemini_fast_model_id,
+                "primary_model": self.settings.gemini_fast_model_id,
+                "support_model": None,
                 "reason": "Medical symptoms, medicine, or disease terms were detected in the conversation.",
                 "execution_plan": [
-                    "Use MedGemma for medical interpretation and safety-aware response drafting.",
-                    "Use Gemini 3.1 Flash for patient-friendly tone and soothing follow-up wording.",
+                    "Use Gemini 3.1 Flash for medical interpretation, safety-aware response drafting, and patient-friendly tone.",
                 ],
             }
 
@@ -113,26 +112,24 @@ class ModelRoutingService:
             return {
                 "route_type": "medical_image",
                 "primary_model": self.settings.medsiglip_model_id,
-                "secondary_model": self.settings.medgemma_model_id,
-                "support_model": self.settings.gemini_fast_model_id,
-                "reason": "Uploaded image should go through MedSigLIP first, then MedGemma for medical reasoning.",
+                "secondary_model": self.settings.gemini_fast_model_id,
+                "support_model": None,
+                "reason": "Uploaded image should go through MedSigLIP first, then Gemini 3.1 Flash for medical reasoning.",
                 "execution_plan": [
                     "Use MedSigLIP for visual understanding and OCR-style intake from the uploaded image.",
-                    "Pass extracted findings to MedGemma for disease-oriented medical reasoning.",
-                    "Use Gemini 3.1 Flash only for patient-friendly wording if a conversational response is needed.",
+                    "Pass extracted findings to Gemini 3.1 Flash for disease-oriented medical reasoning and patient-friendly wording.",
                 ],
             }
 
         if has_medical_text:
             return {
                 "route_type": "medical_text",
-                "primary_model": self.settings.medgemma_model_id,
+                "primary_model": self.settings.gemini_fast_model_id,
                 "secondary_model": None,
-                "support_model": self.settings.gemini_fast_model_id,
-                "reason": "Medical query text should be handled by MedGemma first.",
+                "support_model": None,
+                "reason": "Medical query text should be handled by Gemini 3.1 Flash.",
                 "execution_plan": [
-                    "Use MedGemma for clinical-style interpretation of the medical query.",
-                    "Use Gemini 3.1 Flash only to restate the result in calmer, patient-friendly language.",
+                    "Use Gemini 3.1 Flash for clinical-style interpretation of the medical query and patient-friendly restatement.",
                 ],
             }
 

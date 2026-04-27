@@ -20,18 +20,24 @@ import highSugarImage from '../../assests/High_sugar_contents.png';
 import spicyChickenImage from '../../assests/Spicy_chicken.png';
 import {
   checkAlternatives,
+  createEscalation,
   fetchDietRecipes,
   fetchDietSupport,
-  fetchDrugLabel,
+  fetchMedicineGroundedAnswer,
+  fetchRecipeTutorials,
+  fetchMarketIngredients,
   generateDietRecipes,
-  uploadDocumentFile,
+  sendTextMessage,
+  uploadAndAnalyzeVision,
   type AlternativeResponse,
   type DietRecipe,
   type DietSupportResponse,
-  type DocumentUploadResponse,
-  type DrugLabelResponse,
+  type MedicineGroundedAnswerResponse,
+  type DietRecipeTutorialResponse,
+  type MarketIngredientResponse,
   type GenerateDietRecipesPayload,
   type RecipeIngredient,
+  type VisionUploadAnalyzeResponse,
   type WorkspacePayload,
 } from '../lib/api';
 import { EmptyState, LoadingState } from '../components/States';
@@ -77,17 +83,6 @@ function parseIngredientList(value: string) {
 
 function clampServings(value: number) {
   return Math.max(1, Math.min(12, value));
-}
-
-function inferImageCategory(file: File, route: string): 'PRESCRIPTION' | 'SYMPTOM' | 'OTHER' {
-  const lowerName = file.name.toLowerCase();
-  if (lowerName.includes('prescription') || lowerName.includes('rx') || lowerName.includes('medicine')) {
-    return 'PRESCRIPTION';
-  }
-  if (route === 'medical_image') {
-    return 'SYMPTOM';
-  }
-  return 'OTHER';
 }
 
 function formatScaledIngredient(
@@ -204,6 +199,7 @@ function RecipeCard({
 export function MedicationHubScreen({
   workspace,
   loading,
+  onRefresh,
   patientId,
 }: {
   workspace: WorkspacePayload | null;
@@ -214,7 +210,9 @@ export function MedicationHubScreen({
   const [medicationName, setMedicationName] = useState('Metformin');
   const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<number | null>(null);
   const [alternativeResult, setAlternativeResult] = useState<AlternativeResponse | null>(null);
-  const [drugLabel, setDrugLabel] = useState<DrugLabelResponse | null>(null);
+  const [groundedAnswer, setGroundedAnswer] = useState<MedicineGroundedAnswerResponse | null>(null);
+  const [tutorials, setTutorials] = useState<DietRecipeTutorialResponse | null>(null);
+  const [ingredients, setIngredients] = useState<MarketIngredientResponse | null>(null);
   const [busy, setBusy] = useState<'alternatives' | 'label' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [dietSupport, setDietSupport] = useState<DietSupportResponse | null>(null);
@@ -239,9 +237,10 @@ export function MedicationHubScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
+  const [uploadResult, setUploadResult] = useState<VisionUploadAnalyzeResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadActionBusy, setUploadActionBusy] = useState<'followup' | 'handoff' | 'doctor-chat' | null>(null);
 
   const prescriptions = workspace?.prescriptions ?? [];
   const latestPrescription =
@@ -324,21 +323,25 @@ export function MedicationHubScreen({
   useEffect(() => {
     if (!selectedRecipe) return;
     setSelectedServings(selectedRecipe.default_servings);
-  }, [selectedRecipe]);
-
-  const documentRouteSummary = useMemo(() => {
-    const name = selectedFile?.name?.toLowerCase() ?? '';
-    if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')) {
-      return {
-        route: 'medical_image',
-        models: ['google/medsiglip-448', 'google/medgemma-1.5-4b-it'],
-      };
-    }
-    return {
-      route: 'document_or_text',
-      models: ['google/medgemma-1.5-4b-it'],
+    
+    // Load tutorials and ingredients
+    let active = true;
+    const loadExtras = async () => {
+      try {
+        const [tutResult, ingResult] = await Promise.all([
+          fetchRecipeTutorials(selectedRecipe.recipe_id),
+          fetchMarketIngredients(patientId, selectedRecipe.recipe_id)
+        ]);
+        if (!active) return;
+        setTutorials(tutResult);
+        setIngredients(ingResult);
+      } catch (err) {
+        console.error(err);
+      }
     };
-  }, [selectedFile]);
+    void loadExtras();
+    return () => { active = false; };
+  }, [selectedRecipe, patientId]);
 
   const scaledIngredients = useMemo(() => {
     if (!selectedRecipe) return [];
@@ -368,14 +371,14 @@ export function MedicationHubScreen({
     }
   };
 
-  const runDrugLabelLookup = async () => {
+  const runGroundedAnswerLookup = async () => {
     try {
       setBusy('label');
       setFeedback(null);
-      const result = await fetchDrugLabel(medicationName);
-      setDrugLabel(result);
+      const result = await fetchMedicineGroundedAnswer(medicationName);
+      setGroundedAnswer(result);
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Unable to fetch the drug label.');
+      setFeedback(error instanceof Error ? error.message : 'Unable to fetch the grounded answer.');
     } finally {
       setBusy(null);
     }
@@ -392,22 +395,16 @@ export function MedicationHubScreen({
     try {
       setUploading(true);
       setUploadError(null);
-      const doctorProfiles = ['Dr. Stephen Strange', 'Dr. Shaun Murphy', 'Dr. Aris Thorne'];
-      const doctorName = doctorProfiles[Math.abs(patientId) % doctorProfiles.length];
-      const patientName = workspace.patient.full_name;
       const diseaseName = workspace.conditions[0]?.name ?? medicationName ?? 'general-condition';
-      const captureDate = new Date().toISOString().slice(0, 10);
-      const imageCategory = inferImageCategory(selectedFile, documentRouteSummary.route);
-
-      const result = await uploadDocumentFile(patientId, selectedFile, {
-        prescription_id: imageCategory === 'PRESCRIPTION' ? selectedPrescriptionId : null,
-        doctor_name: doctorName,
-        patient_name: patientName,
-        disease_name: diseaseName,
-        capture_date: captureDate,
-        image_category: imageCategory,
+      const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
+      const result = await uploadAndAnalyzeVision(patientId, selectedFile, {
+        doctorId: primaryDoctor?.id ?? null,
+        diseaseName,
+        captureDate: new Date().toISOString().slice(0, 10),
       });
       setUploadResult(result);
+      setFeedback(`Unified upload saved to Drive as ${result.drive_upload.file_name}.`);
+      await onRefresh();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
@@ -438,6 +435,59 @@ export function MedicationHubScreen({
         status: 'error',
         message: error instanceof Error ? error.message : 'Unable to generate recipes right now.',
       });
+    }
+  };
+
+  const askUploadFollowUp = async () => {
+    if (!uploadResult) return;
+    try {
+      setUploadActionBusy('followup');
+      const response = await sendTextMessage(
+        patientId,
+        `I uploaded a ${uploadResult.category.toLowerCase()} file in Medication Hub. Summary: ${uploadResult.summary} Ask the best follow-up question.`,
+      );
+      setFeedback(response.message);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to prepare a follow-up question.');
+    } finally {
+      setUploadActionBusy(null);
+    }
+  };
+
+  const handoffUploadToDoctor = async () => {
+    if (!uploadResult) return;
+    try {
+      setUploadActionBusy('handoff');
+      const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
+      const result = await createEscalation(
+        patientId,
+        `Medication Hub review requested after upload. ${uploadResult.summary}`,
+        'Medication Hub',
+        primaryDoctor?.id ?? null,
+      );
+      setFeedback(result.external_ticket_url ? 'Doctor handoff created and sent to Asana.' : 'Escalation case created.');
+      await onRefresh();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to create the doctor handoff.');
+    } finally {
+      setUploadActionBusy(null);
+    }
+  };
+
+  const chatAboutUploadWithDoctor = async () => {
+    if (!uploadResult) return;
+    try {
+      setUploadActionBusy('doctor-chat');
+      const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
+      const response = await sendTextMessage(
+        patientId,
+        `Help me prepare a short doctor conversation for ${primaryDoctor?.full_name ?? 'my doctor'} about this medication upload: ${uploadResult.summary}.`,
+      );
+      setFeedback(response.message);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Unable to prepare doctor chat context.');
+    } finally {
+      setUploadActionBusy(null);
     }
   };
 
@@ -527,6 +577,150 @@ export function MedicationHubScreen({
         </SoftCard>
       </div>
 
+      <SoftCard className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary/75">Unified upload</p>
+            <h2 className="mt-2 font-serif text-2xl">Prescription and medication file workflow</h2>
+          </div>
+          <div className="rounded-full bg-primary-fixed/45 p-3 text-primary">
+            <Upload className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center gap-3 rounded-[1.75rem] border-2 border-dashed px-6 py-10 transition-all duration-200 ${
+                isDragOver
+                  ? 'border-primary bg-primary-fixed/20'
+                  : 'border-outline-variant/40 bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-high/60'
+              }`}
+            >
+              <Upload className={`h-8 w-8 ${isDragOver ? 'text-primary' : 'text-on-surface/35'}`} />
+              <div className="text-center">
+                <p className="text-[0.95rem] font-medium text-on-surface/70">
+                  {selectedFile ? selectedFile.name : 'Drop a prescription, label, or symptom file here'}
+                </p>
+                <p className="mt-1 text-[0.82rem] text-on-surface/40">
+                  Auto-classifies, stores to Drive, extracts prescriptions, and creates a history snapshot
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                }}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={!selectedFile || uploading}
+                className="river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading ? 'Running workflow...' : 'Upload and analyze'}
+              </button>
+              {selectedFile ? (
+                <div className="rounded-[1.35rem] bg-surface-container-low px-4 py-3 text-sm text-on-surface/60">
+                  {(selectedFile.size / 1024).toFixed(1)} KB
+                </div>
+              ) : null}
+            </div>
+
+            {uploadError ? (
+              <div className="rounded-[1.5rem] bg-secondary-container/28 px-5 py-4 text-sm leading-7 text-secondary">
+                {uploadError}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-4">
+            {uploading ? (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-[1.75rem] bg-surface-container-low px-6 py-16">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <p className="text-sm font-medium text-on-surface/65">Running the unified medication upload flow...</p>
+              </div>
+            ) : uploadResult ? (
+              <div className="space-y-4">
+                <div className="rounded-[1.5rem] bg-primary-fixed/25 px-5 py-5">
+                  <div className="mb-3 flex items-center gap-2 text-primary">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <p className="font-medium">Upload workflow complete</p>
+                  </div>
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <Pill tone="sage">{uploadResult.category}</Pill>
+                    <Pill>{uploadResult.model_used}</Pill>
+                    <Pill tone="sand">{uploadResult.confidence}% confidence</Pill>
+                  </div>
+                  <p className="text-sm leading-7 text-on-surface/68">{uploadResult.summary}</p>
+                </div>
+
+                <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4 space-y-3">
+                  <p className="text-sm uppercase tracking-[0.18em] text-secondary/70">Stored output</p>
+                  <p className="text-sm leading-7 text-on-surface/68">
+                    Drive file: <span className="font-medium text-on-surface/80">{uploadResult.drive_upload.file_name}</span>
+                  </p>
+                  {uploadResult.medication_name ? (
+                    <p className="text-sm leading-7 text-on-surface/68">
+                      Extracted medication: {uploadResult.medication_name}
+                      {uploadResult.dosage ? ` · ${uploadResult.dosage}` : ''}
+                    </p>
+                  ) : null}
+                  {uploadResult.prescription_id ? (
+                    <p className="text-sm leading-7 text-on-surface/68">Prescription record created: #{uploadResult.prescription_id}</p>
+                  ) : null}
+                  {uploadResult.snapshot_id ? (
+                    <p className="text-sm leading-7 text-on-surface/68">History snapshot created: #{uploadResult.snapshot_id}</p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={askUploadFollowUp}
+                    className="river-stone-btn bg-surface-container-low px-5 py-3 text-on-surface/80"
+                  >
+                    {uploadActionBusy === 'followup' ? 'Preparing...' : 'Ask follow-up'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handoffUploadToDoctor}
+                    className="river-stone-btn bg-secondary-container px-5 py-3 text-on-secondary-container"
+                  >
+                    {uploadActionBusy === 'handoff' ? 'Sending...' : 'Send doctor handoff'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={chatAboutUploadWithDoctor}
+                    className="river-stone-btn bg-primary-fixed/40 px-5 py-3 text-primary"
+                  >
+                    {uploadActionBusy === 'doctor-chat' ? 'Preparing...' : 'Chat with doctor'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[1.75rem] bg-surface-container-low px-6 py-16 text-center text-sm leading-7 text-on-surface/58">
+                Use the same unified upload workflow here as Care Maze so prescriptions, symptom photos, and medication labels land in one backend path.
+              </div>
+            )}
+          </div>
+        </div>
+      </SoftCard>
+
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <SoftCard>
           <div className="flex items-center gap-3 text-secondary">
@@ -562,21 +756,24 @@ export function MedicationHubScreen({
             <FileSearch className="h-5 w-5" />
             <h3 className="font-serif text-2xl">Drug label intelligence</h3>
           </div>
-          {drugLabel ? (
+          {groundedAnswer ? (
             <div className="mt-5 space-y-4">
               <div className="rounded-[1.4rem] bg-surface-container-low px-4 py-3">
-                <p className="text-sm uppercase tracking-[0.18em] text-primary/65">openFDA result</p>
-                <p className="mt-2 font-medium">{drugLabel.medication_name}</p>
-                <Pill tone={drugLabel.found ? 'sage' : 'terracotta'}>{drugLabel.found ? 'Label found' : 'Not found'}</Pill>
+                <p className="text-sm uppercase tracking-[0.18em] text-primary/65">Grounded Answer</p>
+                <p className="mt-2 font-medium">{groundedAnswer.medication_name}</p>
+                <Pill tone="sage">AlloyDB</Pill>
               </div>
-              {drugLabel.label ? (
-                <div className="max-h-60 overflow-y-auto rounded-[1.5rem] bg-surface-container-low px-5 py-4 text-sm leading-7 text-on-surface/65">
-                  <pre className="whitespace-pre-wrap font-sans">{JSON.stringify(drugLabel.label, null, 2)}</pre>
-                </div>
-              ) : null}
+              <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4 text-sm leading-7 text-on-surface/65">
+                <p>{groundedAnswer.safety_summary}</p>
+                {groundedAnswer.wiki_link && (
+                  <a href={groundedAnswer.wiki_link} target="_blank" rel="noreferrer" className="mt-3 inline-block text-primary hover:underline">
+                    Read more on Wikipedia &rarr;
+                  </a>
+                )}
+              </div>
             </div>
           ) : (
-            <EmptyState title="No drug label fetched yet" description="Use the 'Fetch openFDA label' button above to look up a medication's safety information." />
+            <EmptyState title="No grounded answer yet" description="Use the 'Fetch medication label' button above to look up a medication's safety information." />
           )}
           <div className="mt-5 rounded-[1.5rem] bg-surface-container-low px-5 py-4">
             <p className="text-sm uppercase tracking-[0.18em] text-tertiary/70">Trigger memory</p>

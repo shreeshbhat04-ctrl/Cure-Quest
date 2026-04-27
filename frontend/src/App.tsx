@@ -9,6 +9,7 @@ import { HITLScreen } from './screens/HITLScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AboutScreen } from './screens/AboutScreen';
 import { MarketplaceScreen } from './screens/MarketplaceScreen';
+import { Profile } from './screens/Profile';
 import { VoiceAssistant } from './components/VoiceAssistant';
 import { ChatAssistant } from './components/ChatAssistant';
 import { useWorkspace } from './hooks/useWorkspace';
@@ -56,6 +57,8 @@ function AuthenticatedApp({ patientId: initialPatientId, onRoleChange }: { patie
         return <HITLScreen workspace={workspace} loading={loading} onRefresh={refresh} patientId={patientId} />;
       case 'history':
         return <HistoryScreen workspace={workspace} loading={loading} error={error} />;
+      case 'profile':
+        return <Profile workspace={workspace} loading={loading} error={error} onRefresh={refresh} patientId={patientId} />;
       case 'about':
         return <AboutScreen workspace={workspace} loading={loading} error={error} onRefresh={refresh} />;
       default:

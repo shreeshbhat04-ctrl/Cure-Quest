@@ -61,6 +61,8 @@ export interface WorkspacePayload {
     summary: string | null;
     date_of_birth: string | null;
   };
+  profile: PatientProfile;
+  vitals: PatientVital[];
   conditions: Array<{
     id: number;
     name: string;
@@ -112,6 +114,7 @@ export interface WorkspacePayload {
     drive_file_url: string | null;
     created_at: string;
   }>;
+  condition_snapshots: PatientConditionSnapshot[];
   doctors: DoctorProfile[];
   checkin: {
     profile: Record<string, unknown> | null;
@@ -120,6 +123,11 @@ export interface WorkspacePayload {
       task_id: string;
       name: string;
       completed: boolean;
+      source?: string;
+      title?: string | null;
+      short_summary?: string | null;
+      full_details?: string | null;
+      due_at?: string | null;
       due_on?: string | null;
       notes?: string | null;
       assignee_name?: string | null;
@@ -217,10 +225,24 @@ export interface GenerateDietRecipesResponse {
   safety_summary: string;
 }
 
-export interface DrugLabelResponse {
+export interface MedicineGroundedAnswerResponse {
+  patient_id: number;
   medication_name: string;
-  found: boolean;
-  label: Record<string, unknown> | null;
+  safety_summary: string;
+  source_used: string;
+  wiki_link: string | null;
+}
+
+export interface DietRecipeTutorialResponse {
+  recipe_id: string;
+  search_query: string;
+  youtube_url: string;
+}
+
+export interface MarketIngredientResponse {
+  patient_id: number;
+  recipe_id: string | null;
+  ingredients: Array<{ name: string; search_url: string }>;
 }
 
 export interface EscalationResponse {
@@ -260,6 +282,34 @@ export interface DocumentUploadResponse {
   disease_name?: string | null;
   capture_date?: string | null;
   drive_path?: string | null;
+}
+
+export interface VisionSuggestedAction {
+  action_id: string;
+  label: string;
+  description: string;
+}
+
+export interface VisionUploadAnalyzeResponse {
+  patient_id: number;
+  category: string;
+  analysis_type: string;
+  detected_type: string | null;
+  medication_name: string | null;
+  dosage: string | null;
+  instructions: string | null;
+  severity: string | null;
+  confidence: number;
+  findings: string[];
+  summary: string;
+  diet_relevant: boolean;
+  model_used: string;
+  diagnostic_image_base64: string | null;
+  drive_upload: DocumentUploadResponse;
+  prescription_id: number | null;
+  snapshot_id: number | null;
+  created_case_id: number | null;
+  suggested_actions: VisionSuggestedAction[];
 }
 
 export interface DocumentUploadMetadata {
@@ -369,11 +419,83 @@ export interface DoctorTask {
   task_id: string;
   name: string;
   completed: boolean;
+  source?: string;
+  title?: string | null;
+  short_summary?: string | null;
+  full_details?: string | null;
+  due_at?: string | null;
   due_on?: string | null;
   notes?: string | null;
   assignee_name?: string | null;
   assignee_gid?: string | null;
   permalink_url?: string | null;
+}
+
+export interface PatientProfile {
+  patient_id: number;
+  full_name: string;
+  preferred_language: string;
+  date_of_birth: string | null;
+  summary: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  blood_group: string | null;
+  allergies: string[];
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  primary_language: string | null;
+  notes: string | null;
+  updated_at: string | null;
+}
+
+export interface PatientProfileUpdatePayload {
+  full_name?: string | null;
+  preferred_language?: string | null;
+  date_of_birth?: string | null;
+  summary?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  blood_group?: string | null;
+  allergies?: string[] | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  primary_language?: string | null;
+  notes?: string | null;
+}
+
+export interface PatientVital {
+  id: number;
+  patient_id: number;
+  blood_pressure: string | null;
+  heart_rate_bpm: number | null;
+  blood_glucose_mg_dl: number | null;
+  temperature_c: number | null;
+  weight_kg: number | null;
+  source: string | null;
+  recorded_at: string;
+}
+
+export interface PatientConditionSnapshot {
+  id: number;
+  patient_id: number;
+  snapshot_type: string;
+  summary: string;
+  profile: Record<string, unknown> | null;
+  conditions: Array<Record<string, unknown>>;
+  prescriptions: Array<Record<string, unknown>>;
+  vitals: Array<Record<string, unknown>>;
+  source_event_type: string | null;
+  source_event_id: string | null;
+  created_at: string;
+}
+
+export interface PatientVitalCreatePayload {
+  blood_pressure?: string | null;
+  heart_rate_bpm?: number | null;
+  blood_glucose_mg_dl?: number | null;
+  temperature_c?: number | null;
+  weight_kg?: number | null;
+  source?: string | null;
 }
 
 export interface RemindersResponse {
@@ -393,6 +515,62 @@ export interface GoogleAuthStatus {
   google_connected: boolean;
   email: string | null;
   services: { drive: boolean; calendar: boolean; gmail: boolean };
+}
+
+export interface CareDestination {
+  name: string;
+  destination_type: string;
+  address: string;
+  distance_km: number | null;
+  eta_minutes: number | null;
+  map_query: string | null;
+  map_url: string | null;
+  notes: string | null;
+}
+
+export interface CareDestinationSearchPayload {
+  patient_id: number;
+  destination_type?: string;
+  location_query?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  medication_name?: string | null;
+  condition_name?: string | null;
+}
+
+export interface CareDestinationSearchResponse {
+  patient_id: number;
+  searched_location: string;
+  destination_type: string;
+  source_used: string;
+  summary: string;
+  destinations: CareDestination[];
+}
+
+export interface CareMapRoutePayload {
+  patient_id: number;
+  destination_name: string;
+  destination_type?: string;
+  destination_address?: string | null;
+  location_query?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  medication_name?: string | null;
+  condition_name?: string | null;
+}
+
+export interface CareMapRouteResponse {
+  patient_id: number;
+  source_used: string;
+  origin_label: string;
+  destination_label: string;
+  destination_type: string;
+  route_summary: string;
+  estimated_minutes: number | null;
+  distance_km: number | null;
+  map_query: string | null;
+  map_url: string | null;
+  steps: string[];
 }
 
 export interface GmailEmail {
@@ -454,6 +632,46 @@ export async function uploadDocumentFile(
   return response.json() as Promise<DocumentUploadResponse>;
 }
 
+export async function uploadAndAnalyzeVision(
+  patientId: number,
+  file: File,
+  options?: {
+    doctorId?: number | null;
+    diseaseName?: string | null;
+    captureDate?: string | null;
+    createHandoff?: boolean;
+  },
+): Promise<VisionUploadAnalyzeResponse> {
+  const formData = new FormData();
+  formData.append('patient_id', String(patientId));
+  formData.append('file', file);
+
+  if (options?.doctorId !== undefined && options.doctorId !== null) {
+    formData.append('doctor_id', String(options.doctorId));
+  }
+  if (options?.diseaseName) {
+    formData.append('disease_name', options.diseaseName);
+  }
+  if (options?.captureDate) {
+    formData.append('capture_date', options.captureDate);
+  }
+  if (options?.createHandoff) {
+    formData.append('create_handoff', 'true');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/vision/upload-analyze`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Vision upload failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<VisionUploadAnalyzeResponse>;
+}
+
 export async function checkAlternatives(patientId: number, unavailableMedication: string): Promise<AlternativeResponse> {
   return request<AlternativeResponse>('/patient/check-alternatives', {
     method: 'POST',
@@ -501,10 +719,44 @@ export async function generateDietRecipes(payload: GenerateDietRecipesPayload): 
   });
 }
 
-export async function fetchDrugLabel(medicationName: string): Promise<DrugLabelResponse> {
-  return request<DrugLabelResponse>('/drug/label', {
+export async function fetchMedicineGroundedAnswer(medicationName: string): Promise<MedicineGroundedAnswerResponse> {
+  const patientId = Number(localStorage.getItem('cure_quest_demo_patient_id')) || 2;
+  const res = await fetch(`${API_BASE}/medicine/grounded-answer`, {
     method: 'POST',
-    body: JSON.stringify({ medication_name: medicationName }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patient_id: patientId, medication_name: medicationName }),
+  });
+  if (!res.ok) throw new Error('Failed to fetch grounded answer');
+  return res.json();
+}
+
+export async function fetchRecentRecipes(patientId: number) {
+  const res = await fetch(`${API_BASE}/diet/recipes/recent?patient_id=${patientId}`);
+  if (!res.ok) throw new Error('Failed to fetch recent recipes');
+  return res.json();
+}
+
+export async function saveDietRecipe(recipeId: string) {
+  const res = await fetch(`${API_BASE}/diet/recipes/${recipeId}/save`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to save recipe');
+  return res.json();
+}
+
+export async function fetchRecipeTutorials(recipeId: string): Promise<DietRecipeTutorialResponse> {
+  const res = await fetch(`${API_BASE}/diet/recipes/${recipeId}/tutorials`);
+  if (!res.ok) throw new Error('Failed to fetch tutorials');
+  return res.json();
+}
+
+export async function fetchMarketIngredients(patientId: number, recipeId?: string): Promise<MarketIngredientResponse> {
+  const url = new URL(`${API_BASE}/market/ingredients`);
+  url.searchParams.set('patient_id', patientId.toString());
+  if (recipeId) url.searchParams.set('recipe_id', recipeId);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error('Failed to fetch market ingredients');
+  return res.json();
+}
+),
   });
 }
 
@@ -530,12 +782,56 @@ export async function createEscalation(
   });
 }
 
+export async function searchCareDestinations(
+  payload: CareDestinationSearchPayload,
+): Promise<CareDestinationSearchResponse> {
+  return request<CareDestinationSearchResponse>('/caremaze/nearby-care-destinations', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchCareMapRoute(payload: CareMapRoutePayload): Promise<CareMapRouteResponse> {
+  return request<CareMapRouteResponse>('/caremaze/map-route', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchDoctors(patientId: number): Promise<DoctorProfile[]> {
   return request<DoctorProfile[]>(`/doctors?patient_id=${patientId}`);
 }
 
 export async function fetchDoctorTasks(doctorId: number): Promise<DoctorTask[]> {
   return request<DoctorTask[]>(`/doctor-workspace/${doctorId}/tasks`);
+}
+
+export async function fetchPatientProfile(patientId: number): Promise<PatientProfile> {
+  return request<PatientProfile>(`/patients/${patientId}/profile`);
+}
+
+export async function updatePatientProfile(
+  patientId: number,
+  payload: PatientProfileUpdatePayload,
+): Promise<PatientProfile> {
+  return request<PatientProfile>(`/patients/${patientId}/profile`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchPatientVitals(patientId: number): Promise<PatientVital[]> {
+  return request<PatientVital[]>(`/patients/${patientId}/vitals`);
+}
+
+export async function addPatientVital(
+  patientId: number,
+  payload: PatientVitalCreatePayload,
+): Promise<PatientVital> {
+  return request<PatientVital>(`/patients/${patientId}/vitals`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createCalendarEvent(patientId: number, summary: string): Promise<CalendarEventResponse> {
@@ -662,12 +958,27 @@ export async function fetchHealthEmails(patientId: number): Promise<{ patient_id
   );
 }
 
-export async function sendCareSummary(patientId: number, toEmail: string, subject: string, bodyHtml: string): Promise<unknown> {
+export async function sendCareSummary(
+  patientId: number,
+  toEmail: string | null,
+  subject: string | null,
+  bodyHtml: string | null,
+  doctorId?: number | null,
+): Promise<unknown> {
   const formData = new FormData();
   formData.append('patient_id', patientId.toString());
-  formData.append('to_email', toEmail);
-  formData.append('subject', subject);
-  formData.append('body_html', bodyHtml);
+  if (toEmail) {
+    formData.append('to_email', toEmail);
+  }
+  if (doctorId !== undefined && doctorId !== null) {
+    formData.append('doctor_id', doctorId.toString());
+  }
+  if (subject) {
+    formData.append('subject', subject);
+  }
+  if (bodyHtml) {
+    formData.append('body_html', bodyHtml);
+  }
 
   const response = await fetch(`${API_BASE_URL}/gmail/send-care-summary`, {
     method: 'POST',
@@ -736,3 +1047,62 @@ export async function analyzePrescriptionImage(patientId: number, file: File): P
 
   return response.json();
 }
+
+// ── Doctor-Patient Chat API ──────────────────────────────────────
+
+export interface ChatMessageItem {
+  id: number;
+  thread_id: number;
+  sender_role: string;
+  sender_display_name: string;
+  body: string;
+  created_at: string;
+}
+
+export interface ChatThreadItem {
+  id: number;
+  patient_id: number;
+  doctor_id: number;
+  subject: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  last_message: ChatMessageItem | null;
+  message_count: number;
+}
+
+export async function fetchChatThreads(opts: { patient_id?: number; doctor_id?: number }): Promise<{ threads: ChatThreadItem[] }> {
+  const params = new URLSearchParams();
+  if (opts.patient_id !== undefined) params.set('patient_id', opts.patient_id.toString());
+  if (opts.doctor_id !== undefined) params.set('doctor_id', opts.doctor_id.toString());
+  const res = await fetch(`${API_BASE}/chat/threads?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch chat threads');
+  return res.json();
+}
+
+export async function createChatThread(patientId: number, doctorId: number, subject?: string): Promise<ChatThreadItem> {
+  const res = await fetch(`${API_BASE}/chat/threads`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patient_id: patientId, doctor_id: doctorId, subject: subject || 'General consultation' }),
+  });
+  if (!res.ok) throw new Error('Failed to create chat thread');
+  return res.json();
+}
+
+export async function fetchChatMessages(threadId: number): Promise<{ thread_id: number; messages: ChatMessageItem[] }> {
+  const res = await fetch(`${API_BASE}/chat/threads/${threadId}/messages`);
+  if (!res.ok) throw new Error('Failed to fetch messages');
+  return res.json();
+}
+
+export async function sendChatMessage(threadId: number, senderRole: string, senderName: string, body: string): Promise<ChatMessageItem> {
+  const res = await fetch(`${API_BASE}/chat/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sender_role: senderRole, sender_display_name: senderName, body }),
+  });
+  if (!res.ok) throw new Error('Failed to send message');
+  return res.json();
+}
+

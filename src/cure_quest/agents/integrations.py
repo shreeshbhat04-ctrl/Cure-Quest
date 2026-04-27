@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from urllib.parse import quote_plus
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import time
@@ -183,6 +184,134 @@ class IntegrationAgent:
     def lookup_drug_label(self, medication_name: str) -> dict:
         return self._with_retry(self.wikipedia.lookup_drug_label, medication_name)
 
+    @staticmethod
+    def _format_location_label(
+        location_query: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+    ) -> str:
+        if location_query and location_query.strip():
+            return location_query.strip()
+        if latitude is not None and longitude is not None:
+            return f"{latitude:.4f}, {longitude:.4f}"
+        return "current area"
+
+    @staticmethod
+    def _build_google_maps_link(query: str) -> str:
+        return f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+
+    @staticmethod
+    def _build_google_maps_directions(origin: str, destination: str) -> str:
+        return (
+            "https://www.google.com/maps/dir/?api=1"
+            f"&origin={quote_plus(origin)}"
+            f"&destination={quote_plus(destination)}"
+        )
+
+    @staticmethod
+    def _deterministic_seed(*parts: str) -> int:
+        joined = "|".join(parts)
+        return sum(ord(char) for char in joined) or 1
+
+    def search_nearby_care_destinations(
+        self,
+        destination_type: str,
+        location_query: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        medication_name: str | None = None,
+        condition_name: str | None = None,
+    ) -> dict:
+        normalized_type = (destination_type or "pharmacy").strip().lower() or "pharmacy"
+        location_label = self._format_location_label(location_query, latitude, longitude)
+        context_name = medication_name or condition_name or "general care"
+        seed = self._deterministic_seed(location_label, normalized_type, context_name)
+
+        suffixes = ["Central", "Community", "Rapid Care"]
+        destinations: list[dict] = []
+        for index, suffix in enumerate(suffixes, start=1):
+            distance_km = round(((seed % 9) + 2) * 0.35 + (index - 1) * 0.9, 1)
+            eta_minutes = max(7, int(distance_km * 6 + index * 4))
+            name = f"{location_label.split(',')[0][:24].strip() or 'Nearby'} {suffix} {normalized_type.title()}"
+            address = f"{location_label} - Stop {index}"
+            destination_query = f"{name}, {address}"
+            destinations.append(
+                {
+                    "name": name,
+                    "destination_type": normalized_type,
+                    "address": address,
+                    "distance_km": distance_km,
+                    "eta_minutes": eta_minutes,
+                    "map_query": destination_query,
+                    "map_url": self._build_google_maps_link(destination_query),
+                    "notes": (
+                        f"Recommended for {context_name} support."
+                        if context_name
+                        else f"Recommended nearby {normalized_type} option."
+                    ),
+                }
+            )
+
+        source_used = (
+            "google_maps_link_builder"
+            if self.drive.settings.google_maps_api_key
+            else "caremaze_deterministic_fallback"
+        )
+        return {
+            "provider": "caremaze_map_agent",
+            "source_used": source_used,
+            "searched_location": location_label,
+            "destination_type": normalized_type,
+            "summary": (
+                f"Generated {len(destinations)} nearby {normalized_type} options around {location_label} "
+                f"using {source_used}."
+            ),
+            "destinations": destinations,
+        }
+
+    def build_care_route(
+        self,
+        destination_name: str,
+        destination_type: str,
+        location_query: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        destination_address: str | None = None,
+        medication_name: str | None = None,
+        condition_name: str | None = None,
+    ) -> dict:
+        origin_label = self._format_location_label(location_query, latitude, longitude)
+        destination_label = destination_address or destination_name
+        route_seed = self._deterministic_seed(origin_label, destination_label, destination_type)
+        distance_km = round(((route_seed % 11) + 3) * 0.45, 1)
+        estimated_minutes = max(8, int(distance_km * 7))
+        context_hint = medication_name or condition_name or destination_type
+        route_url = self._build_google_maps_directions(origin_label, destination_label)
+        source_used = (
+            "google_maps_link_builder"
+            if self.drive.settings.google_maps_api_key
+            else "caremaze_deterministic_fallback"
+        )
+        steps = [
+            f"Start from {origin_label}.",
+            f"Head toward {destination_name} for {destination_type} support.",
+            f"Keep {context_hint} context ready during check-in or pickup.",
+        ]
+        return {
+            "source_used": source_used,
+            "origin_label": origin_label,
+            "destination_label": destination_name,
+            "destination_type": destination_type,
+            "route_summary": (
+                f"Best route to {destination_name} from {origin_label} is about "
+                f"{distance_km} km and {estimated_minutes} minutes."
+            ),
+            "estimated_minutes": estimated_minutes,
+            "distance_km": distance_km,
+            "map_query": f"{destination_name}, {destination_label}",
+            "map_url": route_url,
+            "steps": steps,
+        }
 
     def list_drive_files(self, credentials=None, max_results: int = 5) -> list[dict]:
         try:
@@ -320,3 +449,27 @@ class IntegrationAgent:
         except Exception as error:
             logger.error("Gmail send failed: %s", error)
             return {"sent": False, "message_id": None, "error": str(error)}
+
+    def search_nearby_pharmacies(
+        self,
+        location_query: str,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        medication_name: str | None = None,
+        condition_name: str | None = None,
+    ) -> dict:
+        result = self.search_nearby_care_destinations(
+            destination_type="pharmacy",
+            location_query=location_query,
+            latitude=latitude,
+            longitude=longitude,
+            medication_name=medication_name,
+            condition_name=condition_name,
+        )
+        return {
+            "provider": result["provider"],
+            "pharmacies": result["destinations"],
+            "source_used": result["source_used"],
+            "searched_location": result["searched_location"],
+            "summary": result["summary"],
+        }

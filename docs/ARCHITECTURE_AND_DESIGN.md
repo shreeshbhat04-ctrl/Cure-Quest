@@ -25,7 +25,7 @@ Cure-Quest is a multi-agent healthcare assistant platform built around:
 - FastAPI backend APIs and orchestration routes
 - A central Orchestrator that routes tasks to specialist agents and services
 - A shared patient brain backed by SQLAlchemy and AlloyDB/Postgres-compatible storage
-- External integrations (Google Workspace, Speech, OpenFDA, BigQuery, Asana, medical models)
+- External integrations (Google Workspace, Speech, BigQuery, Asana, Gemini 3.1 Flash)
 
 Design goals:
 
@@ -80,12 +80,20 @@ graph TD
     %% Data & External Services Layer
     subgraph ExternalServices [External Integrations and Data]
         Brain[(AlloyDB or Postgres via Brain Gateway)]
-        FDA[OpenFDA Service]
         Speech[Google Cloud STT and TTS]
         Drive[Google Workspace Drive and Calendar]
         BigQuery[(BigQuery Analytics)]
-        HF[HuggingFace Medical Models]
-        Gemini[Google Gemini and MedGemma]
+        Gemini[Gemini 3.1 Flash]
+    end
+
+    %% ADK Agent Layer
+    subgraph ADKAgents [ADK Sub-Agents]
+        VisionAgt[Vision Agent]
+        RecipeAgt[Recipe Agent]
+        CommAgtADK[Communication Agent]
+        QuestAgt[Questioner Agent]
+        DataAgt[Data Fetcher Agent]
+        MapAgt[Map Agent]
     end
 
     %% Flow Connections
@@ -103,9 +111,15 @@ graph TD
 
     IntegAgent --> |Transcription and Synthesis| Speech
     IntegAgent --> |Fetch and Upload Files| Drive
-    IntegAgent --> |Check Drug Stock and Labels| FDA
     IntegAgent --> |Log Audit Trails| BigQuery
-    IntegAgent --> |Embeddings and Vision| HF
+
+    %% ADK delegation
+    Orchestrator -.-> |ADK A2A| VisionAgt
+    Orchestrator -.-> |ADK A2A| RecipeAgt
+    Orchestrator -.-> |ADK A2A| CommAgtADK
+    Orchestrator -.-> |ADK A2A| QuestAgt
+    Orchestrator -.-> |ADK A2A| DataAgt
+    Orchestrator -.-> |ADK A2A| MapAgt
 ```
 
 ## 4. Runtime Components and Ownership
@@ -141,6 +155,29 @@ graph TD
 - Local MCP server exposing deterministic tools and DB-backed operations
 - Enables contract testing independent of frontend flow
 
+### ADK Sub-Agent Architecture (A2A)
+
+The ADK layer uses explicit agent-to-agent (A2A) delegation:
+
+- **Root Agent** (`cure_quest_root`): Central orchestration hub. Delegates to all sub-agents.
+  - Vision Agent: uploaded medical image analysis
+  - Recipe Agent: diet-safe recipe generation
+  - Communication Agent: email/chat/calendar wording
+  - Questioner Agent: missing user decisions and action confirmation
+  - Data Fetcher Agent: AlloyDB grounded lookup and patient context
+  - Map Agent: Care Maze location search and route generation
+- **Vision Agent** (`cure_quest_vision_agent`): Delegates to:
+  - Recipe Agent: when medication/diet is relevant
+  - Communication Agent: for patient-friendly summary composition
+  - Questioner Agent: if doctor/action confirmation is needed
+- **Data Fetcher Agent** (`cure_quest_data_fetcher_agent`): Provides:
+  - Medicine facts from AlloyDB
+  - Patient profile snapshots
+  - Historical condition context
+- **Map Agent** (`cure_quest_map_agent`): Provides:
+  - Nearby care destination search via Google Maps MCP
+  - Navigation route generation
+
 ## 5. Core Interaction Flow: Voice Care Journey
 
 ```mermaid
@@ -152,7 +189,7 @@ sequenceDiagram
     participant Orchestrator as Agent Orchestrator
     participant Brain as Backend DB (AlloyDB)
     participant Integrations as Integration Services
-    participant LLM as Gemini or MedGemma
+    participant LLM as Gemini 3.1 Flash
 
     Patient->>VoiceUI: Speaks into microphone
     Note right of VoiceUI: Records audio as WebM
@@ -211,11 +248,10 @@ sequenceDiagram
 | Google STT and TTS | Voice transcription and synthesis | Orchestration voice routes | Return text-only fallback when audio generation fails |
 | Google Drive and Calendar | File storage and reminder scheduling | Documents and reminders APIs | Persist partial success and surface next action to user |
 | Gmail | Care summary delivery | Notification or summary APIs | Queue retry with error metadata |
-| OpenFDA | Drug label and safety data | Drug endpoints and alternatives checks | Return constrained guidance with source unavailability note |
 | BigQuery | Audit and event analytics | Integration logging service | Non-blocking fire-and-forget with retry path |
 | Asana | Escalation and tasking | Ticketing adapter | Local escalation record if remote ticketing fails |
-| Gemini and MedGemma | Conversation and clinical reasoning support | Model router and communication flows | Route to backup model policy and log trace |
-| HuggingFace models | Vision and embedding workflows | Document and retrieval services | Degrade to rules-based extraction if model unavailable |
+| Gemini 3.1 Flash | Conversation, clinical reasoning, and multimodal analysis | Model router and communication flows | Route to backup model policy and log trace |
+| MedSigLIP | Vision classification workflows | Document and retrieval services | Degrade to rules-based extraction if model unavailable |
 
 ## 8. API Capability Map
 
