@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coding Standards"
+  short_description: "Universal TS, JS, React, and Node standards"
+  default_prompt: "Use $coding-standards to enforce consistent coding conventions, readability, and project structure."
