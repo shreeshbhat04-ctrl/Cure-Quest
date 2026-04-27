@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import time
@@ -8,8 +9,7 @@ from cure_quest.adapters.calendar import GoogleCalendarAdapter
 from cure_quest.adapters.drive import GoogleDriveAdapter
 from cure_quest.adapters.gmail import GoogleGmailAdapter
 from cure_quest.adapters.medical_memory import MedicalMemoryAdapter
-from cure_quest.adapters.openfda import OpenFDAAdapter
-from cure_quest.adapters.pharmacy import PharmacySearchAdapter
+from cure_quest.adapters.openfda import WikipediaAdapter
 from cure_quest.adapters.speech import GoogleSpeechAdapter
 from cure_quest.db.models import EscalationCase, Patient, Prescription
 from cure_quest.services.google_workspace import credentials_from_tokens
@@ -25,8 +25,7 @@ class IntegrationAgent:
         self.calendar = GoogleCalendarAdapter()
         self.gmail = GoogleGmailAdapter()
         self.analytics = BigQueryAnalyticsAdapter()
-        self.openfda = OpenFDAAdapter()
-        self.pharmacy = PharmacySearchAdapter()
+        self.wikipedia = WikipediaAdapter()
         self.medical_memory = MedicalMemoryAdapter()
         self.huggingface_medical = HuggingFaceMedicalService()
         self.image_classifier = ImageClassifierService()
@@ -62,50 +61,86 @@ class IntegrationAgent:
         file_path: str,
         mime_type: str,
         prescription_id: int | None = None,
+        doctor_name: str | None = None,
+        patient_name: str | None = None,
+        document_type: str | None = None,
+        disease_name: str | None = None,
+        capture_date: str | None = None,
+        image_category: str | None = None,
     ) -> dict:
         settings = self.drive.settings
         patient_credentials = self._get_patient_google_credentials(db, patient_id)
 
         # --- AI-powered image classification & subfolder routing ---
-        image_category: str | None = None
         target_folder_id: str | None = None
+        drive_path: str | None = None
 
-        if settings.google_drive_classification_enabled and settings.google_drive_folder_id:
-            image_category = self.image_classifier.classify_medical_image(file_path)
-            subfolder_name = CATEGORY_FOLDER_MAP.get(image_category, "Other")
+        resolved_capture_date = capture_date or date.today().isoformat()
+
+        patient_record = db.scalar(select(Patient).where(Patient.id == patient_id))
+        resolved_patient_name = patient_name or (patient_record.full_name if patient_record else f"patient-{patient_id}")
+        resolved_doctor_name = doctor_name or "General"
+
+        if image_category:
+            resolved_image_category = image_category.upper()
+        elif document_type:
+            resolved_image_category = document_type.upper()
+        elif settings.google_drive_classification_enabled:
+            resolved_image_category = self.image_classifier.classify_medical_image(file_path)
+        else:
+            resolved_image_category = "OTHER"
+
+        if settings.google_drive_folder_id:
+            subfolder_name = CATEGORY_FOLDER_MAP.get(resolved_image_category, "Other")
             logger.info(
                 "Image classified as %s → routing to subfolder '%s'",
-                image_category,
+                resolved_image_category,
                 subfolder_name,
             )
             try:
-                target_folder_id = self._with_retry(
-                    self.drive.get_or_create_subfolder,
-                    parent_folder_id=settings.google_drive_folder_id,
-                    folder_name=subfolder_name,
+                target_folder_id, drive_path = self._with_retry(
+                    self.drive.resolve_hierarchical_folder,
+                    root_folder_id=settings.google_drive_folder_id,
+                    doctor_name=resolved_doctor_name,
+                    patient_name=resolved_patient_name,
+                    category_name=subfolder_name,
                     credentials=patient_credentials,
                 )
             except Exception:
-                logger.exception("Failed to resolve subfolder — uploading to root folder")
+                logger.exception("Failed to resolve hierarchical subfolder — uploading to root folder")
                 target_folder_id = None
+
+        resolved_file_name = self.drive.build_storage_filename(
+            disease_name=disease_name,
+            capture_date=resolved_capture_date,
+            mime_type=mime_type,
+        )
 
         result = self._with_retry(
             self.drive.upload_file,
             file_path=file_path,
             mime_type=mime_type,
             folder_id=target_folder_id,
+            file_name=resolved_file_name,
             credentials=patient_credentials,
         )
 
         # Attach the classification result to the response.
-        if image_category:
-            result["image_category"] = image_category
+        result["image_category"] = resolved_image_category
+        result["doctor_name"] = resolved_doctor_name
+        result["patient_name"] = resolved_patient_name
+        result["document_type"] = subfolder_name.lower()
+        result["disease_name"] = disease_name
+        result["capture_date"] = resolved_capture_date
+        if drive_path:
+            result["drive_path"] = drive_path
 
         if prescription_id is not None:
             prescription = db.scalar(select(Prescription).where(Prescription.id == prescription_id))
             if prescription is not None:
                 prescription.document_drive_file_id = result.get("id")
                 prescription.document_drive_file_url = result.get("webViewLink")
+                prescription.drive_path = result.get("drive_path")
                 db.commit()
         return result
 
@@ -146,7 +181,8 @@ class IntegrationAgent:
             }
 
     def lookup_drug_label(self, medication_name: str) -> dict:
-        return self._with_retry(self.openfda.lookup_drug_label, medication_name)
+        return self._with_retry(self.wikipedia.lookup_drug_label, medication_name)
+
 
     def list_drive_files(self, credentials=None, max_results: int = 5) -> list[dict]:
         try:
@@ -159,8 +195,6 @@ class IntegrationAgent:
             logger.error("Drive list failed: %s", error)
             return []
 
-    def search_nearby_pharmacies(self, location_query: str) -> dict:
-        return self._with_retry(self.pharmacy.search_nearby_pharmacies, location_query)
 
     def store_medical_memory(
         self,
@@ -171,6 +205,7 @@ class IntegrationAgent:
         file_path: str | None = None,
         drive_file_id: str | None = None,
         drive_file_url: str | None = None,
+        drive_path: str | None = None,
         metadata: dict | None = None,
         use_live_embedding: bool = False,
     ) -> dict:
@@ -193,6 +228,7 @@ class IntegrationAgent:
             source_reference=file_path,
             drive_file_id=drive_file_id,
             drive_file_url=drive_file_url,
+            drive_path=drive_path,
             metadata=metadata,
             embedding_vector=embedding_vector,
             embedding_model=embedding_model,

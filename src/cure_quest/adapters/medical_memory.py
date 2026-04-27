@@ -26,6 +26,7 @@ class MedicalMemoryAdapter:
         source_reference: str | None = None,
         drive_file_id: str | None = None,
         drive_file_url: str | None = None,
+        drive_path: str | None = None,
         metadata: dict | None = None,
         embedding_vector: list[float] | None = None,
         embedding_model: str | None = None,
@@ -42,6 +43,7 @@ class MedicalMemoryAdapter:
             summary_text=content[:1000],
             drive_file_id=drive_file_id,
             drive_file_url=drive_file_url,
+            drive_path=drive_path,
             metadata_json=json.dumps(metadata or {}),
         )
         db.add(memory)
@@ -86,6 +88,7 @@ class MedicalMemoryAdapter:
                     "summary_text": record.summary_text,
                     "drive_file_id": record.drive_file_id,
                     "drive_file_url": record.drive_file_url,
+                    "drive_path": record.drive_path,
                     "metadata": json.loads(record.metadata_json or "{}"),
                     "similarity": round(similarity, 4),
                 }

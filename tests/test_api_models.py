@@ -15,6 +15,12 @@ def test_escalate_request_defaults() -> None:
     assert payload.calendar_duration_minutes == 30
 
 
+def test_escalate_request_accepts_doctor_routing() -> None:
+    payload = EscalateRequest(patient_id=2, summary="Needs review", doctor_id=7, urgency="high")
+    assert payload.doctor_id == 7
+    assert payload.urgency == "high"
+
+
 def test_conversation_routing_request_requires_message() -> None:
     payload = ConversationRoutingRequest(patient_id=7, message="How was my day going?")
     assert payload.patient_id == 7

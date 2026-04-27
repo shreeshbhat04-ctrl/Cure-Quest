@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Heart, Mail, HardDrive, Calendar, CheckCircle2 } from 'lucide-react';
-import { exchangeGoogleAuth, type GoogleAuthResponse } from '../lib/api';
+import { Heart, Mail, HardDrive, Calendar, CheckCircle2 } from 'lucide-react';
+import logo from '../assets/logo.png';
+import { exchangeGoogleAuth, patient2Image, type GoogleAuthResponse } from '../lib/api';
 
 // Google OAuth Client ID — loaded from env or hardcoded fallback
 const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ?? '';
@@ -96,8 +97,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       >
         {/* Logo */}
         <div className="mb-10 flex flex-col items-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-primary to-primary-container text-surface shadow-[0_16px_40px_-8px_rgba(83,100,49,0.5)]">
-            <Sparkles className="h-9 w-9" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-surface-container-lowest shadow-[0_16px_40px_-8px_rgba(83,100,49,0.5)] overflow-hidden">
+            <img src={logo} alt="Cure-Quest Logo" className="h-14 w-14 object-contain" />
           </div>
           <div className="text-center">
             <h1 className="font-serif text-[2.4rem] font-semibold tracking-[-0.03em] text-primary">
@@ -112,9 +113,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         {/* Login Card */}
         <div className="w-full rounded-[2.25rem] bg-surface-container-lowest/85 p-8 shadow-[0_24px_54px_-12px_rgba(27,28,21,0.12)] backdrop-blur-[20px]">
           {/* Patient Profile Preview */}
-          <div className="mb-6 flex items-center gap-4 rounded-[1.75rem] bg-surface-container-low px-5 py-5">
-            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary-container text-surface shadow-[0_8px_20px_-6px_rgba(120,67,39,0.4)]">
-              <Heart className="h-6 w-6" />
+          <div className="mb-6 flex items-center gap-4 rounded-[1.75rem] bg-surface-container-low px-5 py-5 border border-outline-variant/10">
+            <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-primary/20 shadow-sm">
+              <img src={patient2Image} alt="Patient" className="h-full w-full object-cover" />
             </div>
             <div>
               <p className="font-serif text-[1.15rem] font-medium text-on-surface">

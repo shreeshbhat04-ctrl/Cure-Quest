@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { CalendarDays, MapPinned, Route, Stethoscope, Waves } from 'lucide-react';
-import { createCalendarEvent, createEscalation, fetchDietSupport, type DietSupportResponse, type WorkspacePayload } from '../lib/api';
+import { CalendarDays, CheckCircle2, Loader2, MapPinned, Route, Sparkles, Stethoscope, Upload, Waves } from 'lucide-react';
+import { analyzeSymptomImage, createCalendarEvent, createEscalation, fetchDietSupport, type DietSupportResponse, type WorkspacePayload } from '../lib/api';
 import { EmptyState, LoadingState } from '../components/States';
 import { Pill, SectionShell, SoftCard } from '../components/ui';
 
@@ -21,6 +21,13 @@ export function CareMazeScreen({
   const [supportResult, setSupportResult] = useState<DietSupportResponse | null>(null);
   const [busyAction, setBusyAction] = useState<'maze' | 'calendar' | 'escalate' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState<{ severity: string; confidence: number; findings: string[]; summary: string; model_used?: string } | null>(null);
 
   if (loading && !workspace) return <LoadingState />;
   if (!workspace) return <EmptyState title="No workspace yet" description="Create or seed a patient profile before opening the care maze." />;
@@ -68,6 +75,44 @@ export function CareMazeScreen({
     }
   };
 
+  const handleFileSelect = async (file: File) => {
+    setSelectedFile(file);
+    setAiResult(null);
+    if (file.type.startsWith('image/')) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
+    // Call the real backend for AI analysis
+    setAnalyzing(true);
+    try {
+      const result = await analyzeSymptomImage(patientId, file);
+      setAiResult({
+        severity: result.severity,
+        confidence: result.confidence,
+        findings: result.findings,
+        summary: result.summary,
+        model_used: result.model_used,
+      });
+    } catch (error) {
+      setAiResult({
+        severity: 'Inconclusive',
+        confidence: 0,
+        findings: [error instanceof Error ? error.message : 'Analysis failed – please try again.'],
+        summary: 'The image could not be analysed at this time. Please check your connection and try again.',
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
   const latestCase = workspace.cases[0];
 
   return (
@@ -107,7 +152,7 @@ export function CareMazeScreen({
 
           <div className="flex flex-wrap gap-3">
             <button onClick={runMaze} className="river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface">
-              {busyAction === 'maze' ? 'Mapping...' : 'Map support route'}
+              {busyAction === 'maze' ? 'Asking Agent...' : 'Ask Agent to Map Route'}
             </button>
             <button onClick={scheduleFollowUp} className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high">
               {busyAction === 'calendar' ? 'Scheduling...' : 'Create follow-up'}
@@ -148,50 +193,134 @@ export function CareMazeScreen({
         </SoftCard>
       </div>
 
-      {supportResult ? (
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <SoftCard>
-            <div className="flex items-center gap-3 text-secondary">
-              <Waves className="h-5 w-5" />
-              <h3 className="font-serif text-2xl">Diet support</h3>
-            </div>
-            <p className="mt-3 text-sm leading-7 text-on-surface/65">{supportResult.diet_plan.plan_summary}</p>
-            <div className="mt-5 space-y-3">
-              {supportResult.diet_plan.meal_rules.map((rule) => (
-                <div key={rule} className="rounded-[1.4rem] bg-surface-container-low px-4 py-3 text-sm leading-7 text-on-surface/70">
-                  {rule}
-                </div>
-              ))}
-            </div>
-          </SoftCard>
+      {/* Upload Files & AI Analysis Section */}
+      <SoftCard className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary/75">Symptom intelligence</p>
+            <h2 className="mt-2 font-serif text-2xl">Upload files & AI analysis</h2>
+          </div>
+          <div className="rounded-full bg-primary-fixed/45 p-3 text-primary">
+            <Sparkles className="h-5 w-5" />
+          </div>
+        </div>
 
-          <SoftCard>
-            <div className="flex items-center gap-3 text-primary">
-              <MapPinned className="h-5 w-5" />
-              <h3 className="font-serif text-2xl">Nearby pharmacy set</h3>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Left: Upload & Preview */}
+          <div className="space-y-4">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex cursor-pointer flex-col items-center gap-3 rounded-[1.75rem] border-2 border-dashed px-6 py-10 transition-all duration-200 ${isDragOver
+                  ? 'border-primary bg-primary-fixed/20'
+                  : 'border-outline-variant/40 bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-high/60'
+                }`}
+            >
+              <Upload className={`h-8 w-8 ${isDragOver ? 'text-primary' : 'text-on-surface/35'}`} />
+              <div className="text-center">
+                <p className="text-[0.95rem] font-medium text-on-surface/70">
+                  {selectedFile ? selectedFile.name : 'Drop a symptom image or file here'}
+                </p>
+                <p className="mt-1 text-[0.82rem] text-on-surface/40">
+                  Symptom photos, skin conditions, lab reports
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                }}
+              />
             </div>
-            <div className="mt-5 grid gap-4">
-              {supportResult.pharmacy_result.pharmacies.length ? (
-                supportResult.pharmacy_result.pharmacies.slice(0, 4).map((pharmacy, index) => (
-                  <div key={`${String(pharmacy.name)}-${index}`} className="rounded-[1.5rem] bg-surface-container-low px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium">{String(pharmacy.name ?? 'Unnamed pharmacy')}</p>
-                        <p className="mt-1 text-sm leading-7 text-on-surface/60">{String(pharmacy.formatted_address ?? pharmacy.vicinity ?? 'Address unavailable')}</p>
-                      </div>
-                      <Pill>{String(pharmacy.business_status ?? 'available')}</Pill>
+
+            {previewUrl && (
+              <div className="overflow-hidden rounded-[1.5rem] border border-outline-variant/30 bg-surface-container-low">
+                <img src={previewUrl} alt="Uploaded symptom" className="h-64 w-full object-contain bg-surface" />
+                <div className="px-5 py-3 text-sm text-on-surface/60">
+                  <p className="font-medium text-on-surface/80">{selectedFile?.name}</p>
+                  <p>{selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : ''}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: AI Analysis Results */}
+          <div className="space-y-4">
+            {analyzing ? (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-[1.75rem] bg-surface-container-low px-6 py-16">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <p className="text-sm font-medium text-on-surface/65">Analyzing with Gemini Vision...</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Pill>gemini-2.0-flash</Pill>
+                  <Pill tone="sand">Cure-Quest AI</Pill>
+                </div>
+              </div>
+            ) : aiResult ? (
+              <div className="space-y-4">
+                <div className="rounded-[1.5rem] bg-primary-fixed/25 px-5 py-5">
+                  <div className="flex items-center gap-2 text-primary mb-3">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <p className="font-medium">AI Analysis Complete</p>
+                  </div>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="rounded-xl bg-surface px-4 py-2 text-center">
+                      <p className="text-xs text-on-surface/50">Severity</p>
+                      <p className="text-lg font-serif font-semibold text-secondary">{aiResult.severity}</p>
+                    </div>
+                    <div className="rounded-xl bg-surface px-4 py-2 text-center">
+                      <p className="text-xs text-on-surface/50">Confidence</p>
+                      <p className="text-lg font-serif font-semibold text-primary">{aiResult.confidence}%</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <EmptyState title="No pharmacy results" description="Try another neighborhood or city query to draw a stronger route." />
-              )}
-            </div>
+                  <p className="text-sm leading-7 text-on-surface/68">{aiResult.summary}</p>
+                </div>
 
-            {supportResult.pharmacy_result.pharmacies.length > 0 && locationQuery && (
-              <div className="mt-5 h-[280px] w-full overflow-hidden rounded-[1.5rem] bg-surface-container shadow-inner">
+                <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4 space-y-3">
+                  <p className="text-sm uppercase tracking-[0.18em] text-secondary/70">Key findings</p>
+                  {aiResult.findings.map((finding, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-secondary" />
+                      <p className="text-sm leading-7 text-on-surface/68">{finding}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Pill tone="sage">{aiResult.model_used || 'Gemini Vision'}</Pill>
+                  <Pill>AI-powered analysis</Pill>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-[1.75rem] bg-surface-container-low px-6 py-16 text-center">
+                <Sparkles className="h-10 w-10 text-on-surface/25" />
+                <p className="text-sm font-medium text-on-surface/55">Upload a symptom image to trigger AI analysis</p>
+                <p className="text-xs text-on-surface/40 max-w-xs">Images are sent to Gemini Vision for analysis, returning severity rating, findings, and a clinical summary.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </SoftCard>
+
+      {supportResult ? (
+        <div className="space-y-6">
+          <SoftCard className="flex flex-col items-center text-center">
+            <div className="flex items-center justify-center gap-3 text-primary mb-4">
+              <MapPinned className="h-6 w-6" />
+              <h3 className="font-serif text-3xl">Agent Map Route</h3>
+            </div>
+            <p className="text-on-surface/70 max-w-xl">
+              I found the best route for pharmacies near <strong>{locationQuery}</strong> based on the current context. You can interact with the live map below.
+            </p>
+            {locationQuery && (
+              <div className="mt-6 h-[450px] w-full max-w-4xl overflow-hidden rounded-[1.5rem] bg-surface-container shadow-lg border border-primary/10">
                 <iframe
-                  title="Pharmacy Map"
+                  title="Agent Pharmacy Map"
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
@@ -203,26 +332,24 @@ export function CareMazeScreen({
               </div>
             )}
           </SoftCard>
+
+          <SoftCard>
+            <div className="flex items-center gap-3 text-secondary">
+              <Waves className="h-5 w-5" />
+              <h3 className="font-serif text-2xl">Associated Diet Support</h3>
+            </div>
+            <p className="mt-3 text-sm leading-7 text-on-surface/65">{supportResult.diet_plan.plan_summary}</p>
+            <div className="mt-5 space-y-3">
+              {supportResult.diet_plan.meal_rules.map((rule) => (
+                <div key={rule} className="rounded-[1.4rem] bg-surface-container-low px-4 py-3 text-sm leading-7 text-on-surface/70">
+                  {rule}
+                </div>
+              ))}
+            </div>
+          </SoftCard>
         </div>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <SoftCard className="bg-surface-container-low">
-          <div className="flex items-center gap-3 text-primary">
-            <CalendarDays className="h-5 w-5" />
-            <h3 className="font-serif text-xl">Calendar-ready</h3>
-          </div>
-          <p className="mt-3 text-sm leading-7 text-on-surface/60">Follow-ups from this screen feed the same Google Calendar connection already used by the escalation flow.</p>
-        </SoftCard>
-        <SoftCard className="bg-surface-container-low">
-          <h3 className="font-serif text-xl text-primary">Condition-aware</h3>
-          <p className="mt-3 text-sm leading-7 text-on-surface/60">The diet and pharmacy suggestions stay grounded in the patient’s chronic condition memory before they turn into doctor-facing handoffs.</p>
-        </SoftCard>
-        <SoftCard className="bg-surface-container-low">
-          <h3 className="font-serif text-xl text-primary">MCP-compatible</h3>
-          <p className="mt-3 text-sm leading-7 text-on-surface/60">This screen is already using backend routes that can stay compatible when more of the logic moves behind MCP tools later.</p>
-        </SoftCard>
-      </div>
     </motion.div>
   );
 }

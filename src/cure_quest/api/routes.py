@@ -5,6 +5,10 @@ from sqlalchemy.orm import Session
 
 from cure_quest.agents.orchestrator import Orchestrator
 from cure_quest.api.models import (
+    ActionConfirmRequest,
+    ActionConfirmResponse,
+    ActionDraftRequest,
+    ActionDraftResponse,
     CaseResponse,
     CalendarEventRequest,
     CalendarEventResponse,
@@ -15,6 +19,8 @@ from cure_quest.api.models import (
     DailyCheckInResponse,
     DietSupportRequest,
     DietSupportResponse,
+    DoctorCreateRequest,
+    DoctorResponse,
     DocumentFlowRequest,
     DocumentFlowResponse,
     DocumentPipelineRequest,
@@ -25,6 +31,8 @@ from cure_quest.api.models import (
     DrugLabelResponse,
     EscalateRequest,
     EscalateResponse,
+    GenerateDietRecipesRequest,
+    GenerateDietRecipesResponse,
     HitlReportRequest,
     HitlReportResponse,
     MedicalRoutingRequest,
@@ -40,21 +48,43 @@ from cure_quest.api.models import (
     NotifyRequest,
     NotifyResponse,
     OrchestrationManifestResponse,
+    PendingActionResponse,
     PatientIntakeRequest,
     PatientIntakeResponse,
+    PatientDoctorMapRequest,
     PharmacySearchRequest,
     PharmacySearchResponse,
+    PrescriptionAnalysisResponse,
     PrescriptionScanRequest,
     PrescriptionScanResponse,
     RoutineSnapshotResponse,
+    RoutineTaskResponse,
     RoutineAutomationResponse,
+    ScaleDietRecipeRequest,
+    ScaleDietRecipeResponse,
+    SymptomAnalysisResponse,
 )
 from cure_quest.db.models import EscalationCase
-from cure_quest.db.models import ChronicCondition, MedicalMemory, Notification, Patient, Prescription
+from cure_quest.db.models import ChronicCondition, Doctor, MedicalMemory, Notification, Patient, PatientDoctorMap, PendingAction, Prescription
 from cure_quest.db.session import get_db
 
 router = APIRouter()
 orchestrator = Orchestrator()
+
+
+def _doctor_response(doctor: Doctor, mapping: PatientDoctorMap | None = None) -> DoctorResponse:
+    return DoctorResponse(
+        id=doctor.id,
+        full_name=doctor.full_name,
+        specialty=doctor.specialty,
+        email=doctor.email,
+        phone=doctor.phone,
+        asana_user_gid=doctor.asana_user_gid,
+        asana_workspace_gid=doctor.asana_workspace_gid,
+        profile_image_key=doctor.profile_image_key,
+        is_default=bool(mapping.is_default) if mapping is not None else False,
+        relationship_type=mapping.relationship_type if mapping is not None else None,
+    )
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -260,6 +290,12 @@ def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
     memories = db.scalars(
         select(MedicalMemory).where(MedicalMemory.patient_id == patient_id).order_by(MedicalMemory.created_at.desc())
     ).all()
+    doctor_rows = db.execute(
+        select(Doctor, PatientDoctorMap)
+        .join(PatientDoctorMap, PatientDoctorMap.doctor_id == Doctor.id)
+        .where(PatientDoctorMap.patient_id == patient_id)
+        .order_by(PatientDoctorMap.is_default.desc(), Doctor.full_name)
+    ).all()
 
     checkin = orchestrator.build_daily_checkin(patient_id)
     manifest = orchestrator.get_orchestration_manifest(patient_id)
@@ -312,6 +348,11 @@ def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
                 "case_type": item.case_type,
                 "status": item.status,
                 "summary": item.summary,
+                "doctor_id": item.doctor_id,
+                "doctor_name": item.doctor_name,
+                "doctor_email": item.doctor_email,
+                "doctor_asana_gid": item.doctor_asana_gid,
+                "urgency": item.urgency,
                 "external_ticket_id": item.external_ticket_id,
                 "external_ticket_url": item.external_ticket_url,
                 "drive_file_url": item.drive_file_url,
@@ -333,9 +374,104 @@ def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
             }
             for item in memories
         ],
+        "doctors": [
+            _doctor_response(doctor, mapping).model_dump()
+            for doctor, mapping in doctor_rows
+        ],
         "checkin": checkin,
         "manifest": manifest,
     }
+
+
+@router.get("/doctors", response_model=list[DoctorResponse])
+def list_doctors(patient_id: int | None = None, db: Session = Depends(get_db)) -> list[DoctorResponse]:
+    if patient_id is None:
+        doctors = db.scalars(select(Doctor).order_by(Doctor.full_name)).all()
+        return [_doctor_response(doctor) for doctor in doctors]
+
+    rows = db.execute(
+        select(Doctor, PatientDoctorMap)
+        .join(PatientDoctorMap, PatientDoctorMap.doctor_id == Doctor.id)
+        .where(PatientDoctorMap.patient_id == patient_id)
+        .order_by(PatientDoctorMap.is_default.desc(), Doctor.full_name)
+    ).all()
+    return [_doctor_response(doctor, mapping) for doctor, mapping in rows]
+
+
+@router.post("/doctors", response_model=DoctorResponse)
+def create_doctor(payload: DoctorCreateRequest, db: Session = Depends(get_db)) -> DoctorResponse:
+    doctor = Doctor(
+        full_name=payload.full_name,
+        specialty=payload.specialty,
+        email=payload.email,
+        phone=payload.phone,
+        asana_user_gid=payload.asana_user_gid,
+        asana_workspace_gid=payload.asana_workspace_gid,
+        profile_image_key=payload.profile_image_key,
+    )
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+    return _doctor_response(doctor)
+
+
+@router.post("/patients/{patient_id}/doctor-map", response_model=DoctorResponse)
+def create_patient_doctor_map(
+    patient_id: int,
+    payload: PatientDoctorMapRequest,
+    db: Session = Depends(get_db),
+) -> DoctorResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    doctor = db.scalar(select(Doctor).where(Doctor.id == payload.doctor_id))
+    if doctor is None:
+        raise HTTPException(status_code=404, detail="Doctor not found.")
+
+    if payload.is_default:
+        existing_defaults = db.scalars(
+            select(PatientDoctorMap).where(
+                PatientDoctorMap.patient_id == patient_id,
+                PatientDoctorMap.is_default.is_(True),
+            )
+        ).all()
+        for item in existing_defaults:
+            item.is_default = False
+
+    mapping = db.scalar(
+        select(PatientDoctorMap).where(
+            PatientDoctorMap.patient_id == patient_id,
+            PatientDoctorMap.doctor_id == payload.doctor_id,
+        )
+    )
+    if mapping is None:
+        mapping = PatientDoctorMap(patient_id=patient_id, doctor_id=payload.doctor_id)
+        db.add(mapping)
+
+    mapping.relationship_type = payload.relationship_type
+    mapping.is_default = payload.is_default
+    mapping.notes = payload.notes
+    db.commit()
+    db.refresh(mapping)
+    return _doctor_response(doctor, mapping)
+
+
+@router.get("/doctor-workspace/{doctor_id}/tasks", response_model=list[RoutineTaskResponse])
+def doctor_workspace_tasks(doctor_id: int, db: Session = Depends(get_db)) -> list[RoutineTaskResponse]:
+    doctor = db.scalar(select(Doctor).where(Doctor.id == doctor_id))
+    if doctor is None:
+        raise HTTPException(status_code=404, detail="Doctor not found.")
+    tasks = orchestrator.routine.ticketing_adapter.list_routine_tasks(assignee_gid=doctor.asana_user_gid)
+    return [RoutineTaskResponse(**task.__dict__) for task in tasks]
+
+
+@router.get("/patients/{patient_id}/pending-actions", response_model=list[PendingActionResponse])
+def list_pending_actions(patient_id: int, db: Session = Depends(get_db)) -> list[PendingActionResponse]:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    actions = orchestrator.list_pending_actions(db=db, patient_id=patient_id)
+    return [PendingActionResponse(**item) for item in actions]
 
 
 @router.post("/patient/intake", response_model=PatientIntakeResponse)
@@ -378,7 +514,14 @@ def check_alternatives(payload: CheckAlternativesRequest) -> CheckAlternativesRe
 
 @router.post("/patient/escalate", response_model=EscalateResponse)
 def escalate(payload: EscalateRequest, db: Session = Depends(get_db)) -> EscalateResponse:
-    case = orchestrator.hitl.create_case(db, payload.patient_id, payload.case_type, payload.summary)
+    case = orchestrator.hitl.create_case(
+        db,
+        payload.patient_id,
+        payload.case_type,
+        payload.summary,
+        doctor_id=payload.doctor_id,
+        urgency=payload.urgency,
+    )
     drive_result = None
     if payload.document_file_path:
         drive_result = orchestrator.integrations.upload_document(
@@ -389,6 +532,7 @@ def escalate(payload: EscalateRequest, db: Session = Depends(get_db)) -> Escalat
         )
         case.drive_file_id = drive_result.get("id")
         case.drive_file_url = drive_result.get("webViewLink")
+        case.drive_path = drive_result.get("drive_path")
 
     calendar_result = None
     if payload.create_calendar_event:
@@ -428,6 +572,11 @@ def escalate(payload: EscalateRequest, db: Session = Depends(get_db)) -> Escalat
         external_ticket_id=case.external_ticket_id,
         status=case.status,
         external_ticket_url=case.external_ticket_url,
+        doctor_id=case.doctor_id,
+        doctor_name=case.doctor_name,
+        doctor_email=case.doctor_email,
+        doctor_asana_gid=case.doctor_asana_gid,
+        urgency=case.urgency,
         drive_file_id=case.drive_file_id,
         drive_file_url=case.drive_file_url,
         calendar_event_id=case.calendar_event_id,
@@ -459,6 +608,11 @@ def get_case(case_id: int, db: Session = Depends(get_db)) -> CaseResponse:
         case_type=case.case_type,
         status=case.status,
         summary=case.summary,
+        doctor_id=case.doctor_id,
+        doctor_name=case.doctor_name,
+        doctor_email=case.doctor_email,
+        doctor_asana_gid=case.doctor_asana_gid,
+        urgency=case.urgency,
         external_ticket_id=case.external_ticket_id,
         external_ticket_url=case.external_ticket_url,
         drive_file_id=case.drive_file_id,
@@ -477,6 +631,12 @@ def upload_document(payload: DriveUploadRequest, db: Session = Depends(get_db)) 
         file_path=payload.file_path,
         mime_type=payload.mime_type,
         prescription_id=payload.prescription_id,
+        doctor_name=payload.doctor_name,
+        patient_name=payload.patient_name,
+        document_type=payload.document_type,
+        disease_name=payload.disease_name,
+        capture_date=payload.capture_date,
+        image_category=payload.image_category,
     )
     return DriveUploadResponse(
         patient_id=payload.patient_id,
@@ -485,6 +645,12 @@ def upload_document(payload: DriveUploadRequest, db: Session = Depends(get_db)) 
         web_view_link=result.get("webViewLink"),
         prescription_id=payload.prescription_id,
         image_category=result.get("image_category"),
+        doctor_name=result.get("doctor_name"),
+        patient_name=result.get("patient_name"),
+        document_type=result.get("document_type"),
+        disease_name=result.get("disease_name"),
+        capture_date=result.get("capture_date"),
+        drive_path=result.get("drive_path"),
     )
 
 
@@ -493,6 +659,12 @@ def upload_document_file(
     patient_id: int = Form(...),
     file: UploadFile = File(...),
     prescription_id: int | None = Form(None),
+    doctor_name: str | None = Form(None),
+    patient_name: str | None = Form(None),
+    document_type: str | None = Form(None),
+    disease_name: str | None = Form(None),
+    capture_date: str | None = Form(None),
+    image_category: str | None = Form(None),
     db: Session = Depends(get_db),
 ) -> DriveUploadResponse:
     import tempfile, os
@@ -508,6 +680,12 @@ def upload_document_file(
             file_path=tmp_path,
             mime_type=file.content_type or "application/octet-stream",
             prescription_id=prescription_id,
+            doctor_name=doctor_name,
+            patient_name=patient_name,
+            document_type=document_type,
+            disease_name=disease_name,
+            capture_date=capture_date,
+            image_category=image_category,
         )
     finally:
         os.unlink(tmp_path)
@@ -519,6 +697,12 @@ def upload_document_file(
         web_view_link=result.get("webViewLink"),
         prescription_id=prescription_id,
         image_category=result.get("image_category"),
+        doctor_name=result.get("doctor_name"),
+        patient_name=result.get("patient_name"),
+        document_type=result.get("document_type"),
+        disease_name=result.get("disease_name"),
+        capture_date=result.get("capture_date"),
+        drive_path=result.get("drive_path"),
     )
 
 
@@ -578,7 +762,14 @@ def orchestration_hitl_report(payload: HitlReportRequest, db: Session = Depends(
     external_ticket_id = None
     external_ticket_url = None
     if payload.create_case:
-        case = orchestrator.hitl.create_case(db, payload.patient_id, payload.case_type, report)
+        case = orchestrator.hitl.create_case(
+            db,
+            payload.patient_id,
+            payload.case_type,
+            report,
+            doctor_id=payload.doctor_id,
+            urgency=payload.urgency,
+        )
         case_id = case.id
         external_ticket_id = case.external_ticket_id
         external_ticket_url = case.external_ticket_url
@@ -662,6 +853,48 @@ def orchestration_diet_support(payload: DietSupportRequest) -> DietSupportRespon
     )
 
 
+@router.get("/diet/recipes")
+def list_diet_recipes(
+    patient_id: int = 2,
+    medication_name: str | None = None,
+    meal_type: str | None = None,
+) -> dict:
+    result = orchestrator.list_diet_recipes(
+        patient_id=patient_id,
+        medication_name=medication_name,
+        meal_type=meal_type,
+    )
+    return {
+        "patient_id": result["patient_id"],
+        "conditions": result["conditions"],
+        "recipes": result["recipes"],
+    }
+
+
+@router.post("/diet/recipes/generate", response_model=GenerateDietRecipesResponse)
+def generate_diet_recipes(payload: GenerateDietRecipesRequest) -> GenerateDietRecipesResponse:
+    result = orchestrator.generate_diet_recipes(payload.model_dump())
+    return GenerateDietRecipesResponse(**result)
+
+
+@router.post("/diet/recipes/{recipe_id}/scale", response_model=ScaleDietRecipeResponse)
+def scale_diet_recipe(
+    recipe_id: str,
+    payload: ScaleDietRecipeRequest,
+    patient_id: int,
+    medication_name: str | None = None,
+) -> ScaleDietRecipeResponse:
+    recipe = orchestrator.scale_diet_recipe(
+        patient_id=patient_id,
+        recipe_id=recipe_id,
+        servings=payload.servings,
+        medication_name=medication_name,
+    )
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return ScaleDietRecipeResponse(recipe=recipe)
+
+
 @router.post("/orchestration/document-pipeline", response_model=DocumentPipelineResponse)
 def orchestration_document_pipeline(payload: DocumentPipelineRequest) -> DocumentPipelineResponse:
     result = orchestrator.build_document_pipeline(
@@ -693,6 +926,28 @@ def orchestration_conversation_route(payload: ConversationRoutingRequest, db: Se
     return ConversationRoutingResponse(**result)
 
 
+@router.post("/orchestration/action-draft", response_model=ActionDraftResponse)
+def orchestration_action_draft(payload: ActionDraftRequest, db: Session = Depends(get_db)) -> ActionDraftResponse:
+    result = orchestrator.draft_action(
+        db=db,
+        patient_id=payload.patient_id,
+        intent=payload.intent,
+        message=payload.message,
+    )
+    return ActionDraftResponse(**result)
+
+
+@router.post("/orchestration/action-confirm", response_model=ActionConfirmResponse)
+def orchestration_action_confirm(payload: ActionConfirmRequest, db: Session = Depends(get_db)) -> ActionConfirmResponse:
+    result = orchestrator.confirm_action(
+        db=db,
+        action_id=payload.action_id,
+        selected_option=payload.selected_option,
+        custom_input=payload.custom_input,
+    )
+    return ActionConfirmResponse(**result)
+
+
 import base64
 
 @router.post("/orchestration/voice-route", response_model=ConversationRoutingResponse)
@@ -710,12 +965,72 @@ def orchestration_voice_route(
         
     result = orchestrator.route_conversation(patient_id=patient_id, message=transcript, db=db)
     
-    # Text-to-Speech logic for voice-route
-    tts_result = orchestrator.integrations.synthesize_speech(result["message"])
+    # Text-to-Speech logic for voice-route (cleaning URLs/paths)
+    clean_message = re.sub(r'https?://\S+', '', result["message"])
+    clean_message = re.sub(r'[a-zA-Z]:\\[\\\S]+', '', clean_message)
+    clean_message = clean_message.strip()
+    
+    tts_result = orchestrator.integrations.synthesize_speech(clean_message)
     if tts_result.get("audio_bytes"):
         result["audio_base64"] = base64.b64encode(tts_result["audio_bytes"]).decode("utf-8")
         
     return ConversationRoutingResponse(**result)
+
+
+import json
+from fastapi.responses import StreamingResponse
+import re
+
+@router.post("/orchestration/voice-route-stream")
+async def orchestration_voice_route_stream(
+    patient_id: int = Form(...),
+    audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Streaming version of voice-route to reduce perceived latency."""
+    audio_bytes = audio.file.read()
+    stt_result = orchestrator.integrations.transcribe_audio(audio_bytes)
+    
+    transcript = stt_result.get("transcript")
+    if not transcript:
+        async def error_gen():
+            yield json.dumps({"type": "error", "message": "Transcription failed"}) + "\n"
+        return StreamingResponse(error_gen(), media_type="application/x-ndjson")
+        
+    result = orchestrator.route_conversation(patient_id=patient_id, message=transcript, db=db)
+    full_message = result["message"]
+    
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', full_message) if s.strip()]
+    
+    async def audio_generator():
+        yield json.dumps({
+            "type": "metadata",
+            "transcript": transcript,
+            "full_message": full_message,
+            "route_type": result.get("route_type"),
+            "primary_model": result.get("primary_model"),
+            "action_id": result.get("action_id"),
+            "options": result.get("options") or [],
+            "allow_custom_input": bool(result.get("allow_custom_input", False)),
+        }) + "\n"
+        
+        for sentence in sentences:
+            # Clean technical noise (URLs, paths) from the spoken text
+            clean_sentence = re.sub(r'https?://\S+', '', sentence) # Remove URLs
+            clean_sentence = re.sub(r'[a-zA-Z]:\\[\\\S]+', '', clean_sentence) # Remove Windows paths
+            clean_sentence = re.sub(r'/\S+/\S+', '', clean_sentence) # Remove Unix-like paths
+            clean_sentence = clean_sentence.strip()
+            
+            if not clean_sentence or len(clean_sentence) < 2:
+                continue
+
+            tts_result = orchestrator.integrations.synthesize_speech(clean_sentence)
+            if tts_result.get("audio_bytes"):
+                audio_b64 = base64.b64encode(tts_result["audio_bytes"]).decode("utf-8")
+                yield json.dumps({"type": "audio", "chunk": audio_b64}) + "\n"
+            
+    return StreamingResponse(audio_generator(), media_type="application/x-ndjson")
+
 
 
 @router.post("/orchestration/medical-route", response_model=MedicalRoutingResponse)
@@ -738,6 +1053,7 @@ def medical_memory_store(payload: MedicalMemoryStoreRequest, db: Session = Depen
         file_path=payload.file_path,
         drive_file_id=payload.drive_file_id,
         drive_file_url=payload.drive_file_url,
+        drive_path=payload.drive_path,
         use_live_embedding=payload.use_live_embedding,
         metadata=payload.metadata,
     )
@@ -787,3 +1103,74 @@ def medsiglip_classify(payload: MedSigLIPClassificationRequest) -> MedSigLIPClas
 def orchestration_manifest(patient_id: int) -> OrchestrationManifestResponse:
     result = orchestrator.get_orchestration_manifest(patient_id)
     return OrchestrationManifestResponse(**result)
+
+
+# ── Care Maze: AI-powered image analysis endpoints ───────────────
+
+from cure_quest.services.gemini_vision import GeminiVisionService
+
+_gemini_vision = GeminiVisionService()
+
+
+@router.post("/caremaze/analyze-symptom", response_model=SymptomAnalysisResponse)
+def caremaze_analyze_symptom(
+    patient_id: int = Form(...),
+    file: UploadFile = File(...),
+) -> SymptomAnalysisResponse:
+    """Analyze an uploaded symptom image (skin condition, lab report, etc.)
+    using Gemini vision and return structured findings plus an
+    AI-generated annotated diagnostic comparison graphic."""
+    image_bytes = file.file.read()
+    mime = file.content_type or "image/jpeg"
+
+    # Step 1 – text analysis
+    result = _gemini_vision.analyze_symptom_image(
+        image_bytes=image_bytes,
+        mime_type=mime,
+        analysis_type="symptom",
+    )
+
+    # Step 2 – generate annotated diagnostic comparison image
+    diagnostic_b64 = _gemini_vision.generate_diagnostic_image(
+        image_bytes=image_bytes,
+        mime_type=mime,
+        analysis=result,
+    )
+
+    return SymptomAnalysisResponse(
+        patient_id=patient_id,
+        severity=result["severity"],
+        confidence=result["confidence"],
+        findings=result["findings"],
+        summary=result["summary"],
+        model_used=_gemini_vision._analysis_model_id,
+        diagnostic_image_base64=diagnostic_b64,
+    )
+
+
+@router.post("/caremaze/analyze-prescription", response_model=PrescriptionAnalysisResponse)
+def caremaze_analyze_prescription(
+    patient_id: int = Form(...),
+    file: UploadFile = File(...),
+) -> PrescriptionAnalysisResponse:
+    """Analyze an uploaded prescription image using Gemini vision
+    and return extracted medication details."""
+    image_bytes = file.file.read()
+    mime = file.content_type or "image/jpeg"
+
+    result = _gemini_vision.analyze_symptom_image(
+        image_bytes=image_bytes,
+        mime_type=mime,
+        analysis_type="prescription",
+    )
+
+    return PrescriptionAnalysisResponse(
+        patient_id=patient_id,
+        medication_name=result.get("medication_name", "Unknown"),
+        dosage=result.get("dosage"),
+        instructions=result.get("instructions"),
+        confidence=result["confidence"],
+        findings=result["findings"],
+        summary=result["summary"],
+        model_used=_gemini_vision._analysis_model_id,
+    )

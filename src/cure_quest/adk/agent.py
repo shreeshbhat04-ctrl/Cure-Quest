@@ -21,17 +21,33 @@ server_params = StdioServerParameters(
     env=os.environ.copy(),
 )
 
+google_maps_params = StdioServerParameters(
+    command="npx",
+    args=["-y", "@modelcontextprotocol/server-google-maps"],
+    env=os.environ.copy(),
+)
+
+from cure_quest.adk.recipe_agent import recipe_agent
+from cure_quest.adk.vision_agent import vision_agent
+
 root_agent = LlmAgent(
     model=settings.adk_model,
     name="cure_quest_root",
     description="Development agent for verifying Cure-Quest MCP connectivity.",
     instruction=(
         "You are the Cure-Quest bootstrap agent. Use MCP tools to verify local connectivity "
-        "and summarize patient context conservatively."
+        "and summarize patient context conservatively. Delegate recipe specific tasks "
+        "to the recipe agent. Delegate any uploaded medical image analysis "
+        "to the vision agent."
     ),
     tools=[
         McpToolset(
             connection_params=StdioConnectionParams(server_params=server_params),
-        )
+        ),
+        McpToolset(
+            connection_params=StdioConnectionParams(server_params=google_maps_params),
+        ),
     ],
+    delegates=[recipe_agent, vision_agent],
 )
+

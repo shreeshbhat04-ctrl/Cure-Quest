@@ -4,20 +4,50 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from cure_quest.adapters.ticketing import TicketingAdapter, build_ticketing_adapter
-from cure_quest.db.models import ChronicCondition, EscalationCase, Notification, Prescription
+from cure_quest.db.models import ChronicCondition, Doctor, EscalationCase, Notification, Prescription
 
 
 class HITLAgent:
     def __init__(self, ticketing_adapter: TicketingAdapter | None = None) -> None:
         self.ticketing_adapter = ticketing_adapter or build_ticketing_adapter()
 
-    def create_case(self, db: Session, patient_id: int, case_type: str, summary: str) -> EscalationCase:
-        ticket = self.ticketing_adapter.create_review_ticket(patient_id=patient_id, summary=summary, case_type=case_type)
+    def create_case(
+        self,
+        db: Session,
+        patient_id: int,
+        case_type: str,
+        summary: str,
+        doctor_id: int | None = None,
+        doctor_name: str | None = None,
+        doctor_email: str | None = None,
+        doctor_asana_gid: str | None = None,
+        urgency: str | None = None,
+    ) -> EscalationCase:
+        if doctor_id is not None:
+            doctor = db.scalar(select(Doctor).where(Doctor.id == doctor_id))
+            if doctor is not None:
+                doctor_name = doctor_name or doctor.full_name
+                doctor_email = doctor_email or doctor.email
+                doctor_asana_gid = doctor_asana_gid or doctor.asana_user_gid
+
+        ticket = self.ticketing_adapter.create_review_ticket(
+            patient_id=patient_id,
+            summary=summary,
+            case_type=case_type,
+            doctor_asana_gid=doctor_asana_gid,
+            doctor_name=doctor_name,
+            urgency=urgency,
+        )
         case = EscalationCase(
             patient_id=patient_id,
             case_type=case_type,
             status=ticket.status,
             summary=summary,
+            doctor_id=doctor_id,
+            doctor_name=doctor_name,
+            doctor_email=doctor_email,
+            doctor_asana_gid=doctor_asana_gid,
+            urgency=urgency,
             external_ticket_id=ticket.ticket_id,
             external_ticket_url=ticket.external_url,
         )

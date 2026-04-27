@@ -150,10 +150,14 @@ Required external connections:
 
 - database through SQLAlchemy session layer
 
+Current external MCP servers:
+
+- `@modelcontextprotocol/server-google-maps` for pharmacy and location services (requires `GOOGLE_MAPS_API_KEY`)
+
 Future external connections:
 
 - MCP Toolbox for AlloyDB
-- external pharmacy or ticketing MCP servers
+- ticketing MCP servers
 - Gmail / Calendar / Asana style tools
 
 ### Database / AlloyDB

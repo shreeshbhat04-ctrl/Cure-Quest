@@ -75,6 +75,13 @@ def test_lookup_drug_label_falls_back_to_normalized_name(monkeypatch) -> None:
                                 "manufacturer_name": ["Example Pharma"],
                             },
                             "warnings": ["For external use only."],
+                            "boxed_warning": ["Serious warning text."],
+                            "contraindications": ["Do not use with example condition."],
+                            "adverse_reactions": ["Skin irritation."],
+                            "dosage_and_administration": ["Apply as directed."],
+                            "dosage_forms_and_strengths": ["Cream 0.05%."],
+                            "drug_interactions": ["Example interaction."],
+                            "warnings_and_cautions": ["Avoid contact with eyes."],
                         }
                     ]
                 },
@@ -87,6 +94,13 @@ def test_lookup_drug_label_falls_back_to_normalized_name(monkeypatch) -> None:
 
     assert result["found"] is True
     assert result["label"]["generic_name"] == ["Clobetasol Propionate"]
+    assert result["label"]["boxed_warning"] == ["Serious warning text."]
+    assert result["label"]["contraindications"] == ["Do not use with example condition."]
+    assert result["label"]["adverse_reactions"] == ["Skin irritation."]
+    assert result["label"]["dosage_and_administration"] == ["Apply as directed."]
+    assert result["label"]["dosage_forms_and_strengths"] == ["Cream 0.05%."]
+    assert result["label"]["drug_interactions"] == ["Example interaction."]
+    assert result["label"]["warnings_and_cautions"] == ["Avoid contact with eyes."]
     assert len(captured_queries) == 2
     assert captured_queries[0] == 'openfda.brand_name:"Clobetasol Propionate 0.05% Cream" OR openfda.generic_name:"Clobetasol Propionate 0.05% Cream"'
     assert captured_queries[1] == 'openfda.brand_name:"Clobetasol Propionate" OR openfda.generic_name:"Clobetasol Propionate"'

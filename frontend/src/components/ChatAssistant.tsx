@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
-import { sendTextMessage, type ConversationResponse } from '../lib/api';
+import { confirmAction, sendTextMessage, type ActionOption, type ConversationResponse } from '../lib/api';
 import { Pill } from './ui';
 
 interface Message {
@@ -10,6 +10,11 @@ interface Message {
   content: string;
   model?: string;
   routeType?: string;
+  actionId?: number;
+  intent?: string;
+  question?: string;
+  options?: ActionOption[];
+  allowCustomInput?: boolean;
 }
 
 interface ChatAssistantProps {
@@ -21,6 +26,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ patientId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
+  const [confirmingActionId, setConfirmingActionId] = useState<number | null>(null);
+  const [resolvedActions, setResolvedActions] = useState<Record<number, boolean>>({});
   
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +60,11 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ patientId }) => {
         content: response.message,
         model: response.primary_model,
         routeType: response.route_type,
+        actionId: response.action_id,
+        intent: response.intent,
+        question: response.question,
+        options: response.options,
+        allowCustomInput: response.allow_custom_input,
       };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (err) {
@@ -63,6 +76,39 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ patientId }) => {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleActionConfirm = async (message: Message, selectedOption?: string, useCustom: boolean = false) => {
+    if (!message.actionId || confirmingActionId === message.actionId) return;
+    const customInput = (customInputs[message.id] || '').trim();
+    if (useCustom && !customInput) return;
+
+    setConfirmingActionId(message.actionId);
+    try {
+      const result = await confirmAction(
+        message.actionId,
+        selectedOption,
+        useCustom ? customInput : undefined,
+      );
+      setResolvedActions((prev) => ({ ...prev, [message.actionId as number]: true }));
+      const resultMessage: Message = {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content:
+          (result.result?.message as string | undefined) ||
+          `Action ${result.status}.`,
+      };
+      setMessages((prev) => [...prev, resultMessage]);
+    } catch (err) {
+      const errorMessage: Message = {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: err instanceof Error ? err.message : 'Failed to confirm this action.',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setConfirmingActionId(null);
     }
   };
 
@@ -116,6 +162,49 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ patientId }) => {
                     >
                       {msg.content}
                     </div>
+                    {msg.role === 'assistant' &&
+                      msg.actionId &&
+                      !resolvedActions[msg.actionId] &&
+                      msg.options &&
+                      msg.options.length > 0 && (
+                        <div className="mt-2 w-full max-w-[85%] rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-3">
+                          <p className="mb-2 text-[0.75rem] font-semibold uppercase tracking-wide text-on-surface/50">
+                            Confirm Action
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {msg.options.map((option) => (
+                              <button
+                                key={`${msg.id}-${option.value}`}
+                                onClick={() => handleActionConfirm(msg, option.value)}
+                                disabled={confirmingActionId === msg.actionId}
+                                className="rounded-xl bg-primary-container px-3 py-2 text-left text-[0.82rem] text-on-primary-container transition-colors hover:bg-primary/20 disabled:opacity-60"
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          {msg.allowCustomInput && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={customInputs[msg.id] || ''}
+                                onChange={(e) =>
+                                  setCustomInputs((prev) => ({ ...prev, [msg.id]: e.target.value }))
+                                }
+                                placeholder="Custom input"
+                                className="input-shell h-10 flex-1"
+                              />
+                              <button
+                                onClick={() => handleActionConfirm(msg, undefined, true)}
+                                disabled={confirmingActionId === msg.actionId}
+                                className="rounded-xl bg-secondary-container px-3 py-2 text-[0.8rem] text-on-secondary-container disabled:opacity-60"
+                              >
+                                {confirmingActionId === msg.actionId ? 'Sending...' : 'Send'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                   </div>
                 ))
               )}

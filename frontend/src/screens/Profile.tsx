@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Settings, Shield, Bell, CreditCard, LogOut, ChevronRight, User, Heart } from 'lucide-react';
+import { patient2Image } from '../lib/api';
 
 export const Profile: React.FC = () => {
   const settings = [
@@ -20,7 +21,7 @@ export const Profile: React.FC = () => {
       <section className="flex flex-col items-center text-center">
         <div className="relative mb-6 group">
           <div className="w-32 h-32 rounded-[3rem] overflow-hidden border-8 border-surface shadow-xl group-hover:scale-105 transition-transform duration-500">
-            <img src="https://picsum.photos/seed/me/300/300" alt="Me" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img src={patient2Image} alt="Me" className="w-full h-full object-cover" />
           </div>
           <button className="absolute bottom-0 right-0 w-10 h-10 bg-primary rounded-full flex items-center justify-center text-surface border-4 border-surface shadow-md hover:bg-primary-container transition-colors">
             <Settings className="w-5 h-5" />

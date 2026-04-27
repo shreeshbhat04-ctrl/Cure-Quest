@@ -25,24 +25,42 @@ class RoutineTask:
     due_on: str | None = None
     notes: str | None = None
     assignee_name: str | None = None
+    assignee_gid: str | None = None
     permalink_url: str | None = None
 
 
 class TicketingAdapter:
-    def create_review_ticket(self, patient_id: int, summary: str, case_type: str) -> TicketResult:
+    def create_review_ticket(
+        self,
+        patient_id: int,
+        summary: str,
+        case_type: str,
+        doctor_asana_gid: str | None = None,
+        doctor_name: str | None = None,
+        urgency: str | None = None,
+    ) -> TicketResult:
         raise NotImplementedError
 
-    def list_routine_tasks(self) -> list[RoutineTask]:
+    def list_routine_tasks(self, assignee_gid: str | None = None) -> list[RoutineTask]:
         raise NotImplementedError
 
 
 class MockTicketingAdapter(TicketingAdapter):
-    def create_review_ticket(self, patient_id: int, summary: str, case_type: str) -> TicketResult:
-        _ = (patient_id, summary, case_type)
+    def create_review_ticket(
+        self,
+        patient_id: int,
+        summary: str,
+        case_type: str,
+        doctor_asana_gid: str | None = None,
+        doctor_name: str | None = None,
+        urgency: str | None = None,
+    ) -> TicketResult:
+        _ = (patient_id, summary, case_type, doctor_asana_gid, doctor_name, urgency)
         ticket_id = f"CQ-{str(uuid4())[:8].upper()}"
         return TicketResult(ticket_id=ticket_id, status="created")
 
-    def list_routine_tasks(self) -> list[RoutineTask]:
+    def list_routine_tasks(self, assignee_gid: str | None = None) -> list[RoutineTask]:
+        _ = assignee_gid
         return [
             RoutineTask(
                 task_id="mock-1",
@@ -51,6 +69,7 @@ class MockTicketingAdapter(TicketingAdapter):
                 due_on=date.today().isoformat(),
                 notes="Check whether the patient took the morning dose.",
                 assignee_name="Care Coordinator",
+                assignee_gid=None,
                 permalink_url=None,
             ),
             RoutineTask(
@@ -60,6 +79,7 @@ class MockTicketingAdapter(TicketingAdapter):
                 due_on=date.today().isoformat(),
                 notes="Ask how the patient is feeling today.",
                 assignee_name="Care Coordinator",
+                assignee_gid=None,
                 permalink_url=None,
             ),
         ]
@@ -71,20 +91,38 @@ class AsanaTicketingAdapter(TicketingAdapter):
         self.base_url = "https://app.asana.com/api/1.0"
         self._mock = MockTicketingAdapter()
 
-    def create_review_ticket(self, patient_id: int, summary: str, case_type: str) -> TicketResult:
+    def create_review_ticket(
+        self,
+        patient_id: int,
+        summary: str,
+        case_type: str,
+        doctor_asana_gid: str | None = None,
+        doctor_name: str | None = None,
+        urgency: str | None = None,
+    ) -> TicketResult:
         if not self.settings.asana_access_token or not self.settings.asana_project_gid:
             raise ValueError("ASANA_ACCESS_TOKEN and ASANA_PROJECT_GID must be configured.")
 
         task_name = f"[REVIEW REQUIRED] Patient {patient_id}"
-        notes = f"Case type: {case_type}\n\nSummary:\n{summary}"
+        note_lines = [
+            f"Case type: {case_type}",
+            f"Patient ID: {patient_id}",
+        ]
+        if doctor_name:
+            note_lines.append(f"Doctor: {doctor_name}")
+        if urgency:
+            note_lines.append(f"Urgency: {urgency}")
+        note_lines.extend(["", "Summary:", summary])
+        notes = "\n".join(note_lines)
         data: dict[str, object] = {
             "name": task_name,
             "notes": notes,
             "projects": [self.settings.asana_project_gid],
         }
 
-        if self.settings.asana_assignee_gid:
-            data["assignee"] = self.settings.asana_assignee_gid
+        assignee_gid = doctor_asana_gid or self.settings.asana_assignee_gid
+        if assignee_gid:
+            data["assignee"] = assignee_gid
         if self.settings.asana_task_due_on:
             data["due_on"] = self.settings.asana_task_due_on
         elif case_type == "doctor_review":
@@ -111,9 +149,16 @@ class AsanaTicketingAdapter(TicketingAdapter):
             return TicketResult(ticket_id=task_gid, status="created", external_url=permalink)
         except Exception as error:
             logger.warning("Asana ticket creation failed, falling back to mock ticket: %s", error)
-            return self._mock.create_review_ticket(patient_id=patient_id, summary=summary, case_type=case_type)
+            return self._mock.create_review_ticket(
+                patient_id=patient_id,
+                summary=summary,
+                case_type=case_type,
+                doctor_asana_gid=doctor_asana_gid,
+                doctor_name=doctor_name,
+                urgency=urgency,
+            )
 
-    def list_routine_tasks(self) -> list[RoutineTask]:
+    def list_routine_tasks(self, assignee_gid: str | None = None) -> list[RoutineTask]:
         if not self.settings.asana_access_token or not self.settings.asana_project_gid:
             raise ValueError("ASANA_ACCESS_TOKEN and ASANA_PROJECT_GID must be configured.")
 
@@ -123,7 +168,7 @@ class AsanaTicketingAdapter(TicketingAdapter):
         }
         params = {
             "completed_since": "now",
-            "opt_fields": "name,completed,due_on,notes,assignee.name,permalink_url",
+            "opt_fields": "name,completed,due_on,notes,assignee.gid,assignee.name,permalink_url",
             "limit": 20,
         }
 
@@ -144,16 +189,18 @@ class AsanaTicketingAdapter(TicketingAdapter):
                     due_on=item.get("due_on"),
                     notes=item.get("notes"),
                     assignee_name=(item.get("assignee") or {}).get("name"),
+                    assignee_gid=(item.get("assignee") or {}).get("gid"),
                     permalink_url=item.get("permalink_url"),
                 )
                 for item in payload
             ]
-            if self.settings.asana_assignee_gid:
-                tasks = [task for task in tasks if task.assignee_name]
+            filter_assignee_gid = assignee_gid or self.settings.asana_assignee_gid
+            if filter_assignee_gid:
+                tasks = [task for task in tasks if task.assignee_gid == filter_assignee_gid]
             return tasks
         except Exception as error:
             logger.warning("Asana routine fetch failed, falling back to mock tasks: %s", error)
-            return self._mock.list_routine_tasks()
+            return self._mock.list_routine_tasks(assignee_gid=assignee_gid)
 
 
 def build_ticketing_adapter() -> TicketingAdapter:

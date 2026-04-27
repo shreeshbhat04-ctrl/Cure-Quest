@@ -25,11 +25,14 @@
   
   --color-on-surface: #1b1c15;
   --color-outline-variant: #c6c8b8;
+
+  --color-terracotta: #784327;
+  --color-sage: #536431;
 }
 
 @layer base {
   html {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   html,
@@ -46,7 +49,6 @@
     min-width: 0;
   }
 
-  /* Defensive shell: avoids rare flex/% width collapse in nested layouts */
   .cq-app-frame {
     width: 100%;
     min-width: 0;
@@ -54,9 +56,8 @@
   }
 
   .cq-app-inner {
-    width: 100%;
+    width: 75%;
     min-width: 0;
-    max-width: 1440px;
     margin-left: auto;
     margin-right: auto;
     box-sizing: border-box;
@@ -104,5 +105,33 @@
 
   .soft-panel {
     @apply rounded-[1.5rem] bg-surface-container-low px-5 py-4;
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.03);
+    border-radius: 0.5rem;
+  }
+
+  .glass-edge {
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .app-background-image {
+    background-image: url('./assets/background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+  }
+
+  .overlay-bright {
+    background-color: rgba(252, 250, 238, 0.25);
+  }
+
+  .overlay-dim {
+    background-color: rgba(252, 250, 238, 0.5);
   }
 }

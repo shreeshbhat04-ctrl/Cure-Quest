@@ -19,14 +19,24 @@ def _apply_lightweight_migrations() -> None:
         "prescriptions": {
             "document_drive_file_id": "ALTER TABLE prescriptions ADD COLUMN document_drive_file_id VARCHAR(255)",
             "document_drive_file_url": "ALTER TABLE prescriptions ADD COLUMN document_drive_file_url TEXT",
+            "drive_path": "ALTER TABLE prescriptions ADD COLUMN drive_path TEXT",
         },
         "escalation_cases": {
+            "doctor_id": "ALTER TABLE escalation_cases ADD COLUMN doctor_id INTEGER",
+            "doctor_name": "ALTER TABLE escalation_cases ADD COLUMN doctor_name VARCHAR(255)",
+            "doctor_email": "ALTER TABLE escalation_cases ADD COLUMN doctor_email VARCHAR(255)",
+            "doctor_asana_gid": "ALTER TABLE escalation_cases ADD COLUMN doctor_asana_gid VARCHAR(255)",
+            "urgency": "ALTER TABLE escalation_cases ADD COLUMN urgency VARCHAR(50)",
             "external_ticket_url": "ALTER TABLE escalation_cases ADD COLUMN external_ticket_url TEXT",
             "drive_file_id": "ALTER TABLE escalation_cases ADD COLUMN drive_file_id VARCHAR(255)",
             "drive_file_url": "ALTER TABLE escalation_cases ADD COLUMN drive_file_url TEXT",
             "calendar_event_id": "ALTER TABLE escalation_cases ADD COLUMN calendar_event_id VARCHAR(255)",
             "calendar_event_url": "ALTER TABLE escalation_cases ADD COLUMN calendar_event_url TEXT",
             "pharmacy_search_summary": "ALTER TABLE escalation_cases ADD COLUMN pharmacy_search_summary TEXT",
+            "drive_path": "ALTER TABLE escalation_cases ADD COLUMN drive_path TEXT",
+        },
+        "medical_memories": {
+            "drive_path": "ALTER TABLE medical_memories ADD COLUMN drive_path TEXT",
         },
     }
 

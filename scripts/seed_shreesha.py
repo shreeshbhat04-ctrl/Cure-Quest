@@ -6,7 +6,7 @@ Run with:
 from datetime import date, datetime, timedelta, UTC
 
 from cure_quest.db.bootstrap import init_database
-from cure_quest.db.models import ChronicCondition, Patient, Prescription
+from cure_quest.db.models import ChronicCondition, Doctor, Patient, PatientDoctorMap, Prescription
 from cure_quest.db.session import SessionLocal
 
 
@@ -20,7 +20,7 @@ EPILEPSY_DOC_DRIVE_FILE_URL = None       # e.g. "https://drive.google.com/file/d
 
 
 def main() -> None:
-    #init_database()
+    init_database()
 
     with SessionLocal() as db:
         # Upsert patient 2
@@ -105,11 +105,41 @@ def main() -> None:
             created_at=datetime.now(UTC) - timedelta(days=30),
         ))
 
+        doctor = db.query(Doctor).filter(Doctor.asana_user_gid == "1214276322986923").one_or_none()
+        if doctor is None:
+            doctor = Doctor(asana_user_gid="1214276322986923")
+            db.add(doctor)
+        doctor.full_name = "Dr surgeon"
+        doctor.specialty = "Gynacologist"
+        doctor.email = "sreeshhb@gmail.com"
+        doctor.asana_workspace_gid = "1213916290149152"
+        doctor.profile_image_key = "surgeon"
+        db.flush()
+
+        for old_default in db.query(PatientDoctorMap).filter(
+            PatientDoctorMap.patient_id == 2,
+            PatientDoctorMap.is_default.is_(True),
+            PatientDoctorMap.doctor_id != doctor.id,
+        ):
+            old_default.is_default = False
+
+        mapping = db.query(PatientDoctorMap).filter(
+            PatientDoctorMap.patient_id == 2,
+            PatientDoctorMap.doctor_id == doctor.id,
+        ).one_or_none()
+        if mapping is None:
+            mapping = PatientDoctorMap(patient_id=2, doctor_id=doctor.id)
+            db.add(mapping)
+        mapping.relationship_type = "primary"
+        mapping.is_default = True
+        mapping.notes = "Default doctor for Asana Care Approvals routing."
+
         db.commit()
         print(f"✓ Seeded Patient {patient.id}: {patient.full_name}")
         print(f"  Conditions: Atopic Eczema, Focal Epilepsy")
         print(f"  Prescriptions: Clobetasol Propionate, Levetiracetam 500mg")
         print(f"  Email: {patient.google_email}")
+        print(f"  Default doctor: {doctor.full_name} ({doctor.asana_user_gid})")
         if ECZEMA_DOC_DRIVE_FILE_ID:
             print(f"  Eczema doc: {ECZEMA_DOC_DRIVE_FILE_URL}")
         else:

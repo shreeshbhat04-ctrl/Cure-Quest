@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cure_quest.db.session import Base
@@ -27,6 +27,38 @@ class Patient(Base):
     conditions: Mapped[list["ChronicCondition"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     prescriptions: Mapped[list["Prescription"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    doctor_mappings: Mapped[list["PatientDoctorMap"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+
+
+class Doctor(Base):
+    __tablename__ = "doctors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    specialty: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    asana_user_gid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    asana_workspace_gid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    profile_image_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    patient_mappings: Mapped[list["PatientDoctorMap"]] = relationship(back_populates="doctor", cascade="all, delete-orphan")
+
+
+class PatientDoctorMap(Base):
+    __tablename__ = "patient_doctor_map"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
+    relationship_type: Mapped[str] = mapped_column(String(50), default="primary")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="doctor_mappings")
+    doctor: Mapped[Doctor] = relationship(back_populates="patient_mappings")
 
 
 class ChronicCondition(Base):
@@ -56,6 +88,7 @@ class Prescription(Base):
     review_status: Mapped[str] = mapped_column(String(50), default="pending")
     document_drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     document_drive_file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     patient: Mapped[Patient] = relationship(back_populates="prescriptions")
@@ -80,6 +113,11 @@ class EscalationCase(Base):
     case_type: Mapped[str] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(50), default="open")
     summary: Mapped[str] = mapped_column(Text)
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    doctor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    doctor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    doctor_asana_gid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    urgency: Mapped[str | None] = mapped_column(String(50), nullable=True)
     external_ticket_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     external_ticket_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -87,6 +125,7 @@ class EscalationCase(Base):
     calendar_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     calendar_event_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     pharmacy_search_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -117,5 +156,21 @@ class MedicalMemory(Base):
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     drive_file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PendingAction(Base):
+    __tablename__ = "pending_actions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    action_type: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(40), default="draft")
+    draft_payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    options_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selected_option_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

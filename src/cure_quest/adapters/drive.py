@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 
 from googleapiclient.discovery import build
@@ -71,11 +72,87 @@ class GoogleDriveAdapter:
         self._folder_cache[cache_key] = folder_id
         return folder_id
 
+    @staticmethod
+    def _slugify(value: str) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
+        return normalized or "unknown"
+
+    def build_storage_filename(
+        self,
+        disease_name: str | None,
+        capture_date: str,
+        mime_type: str,
+    ) -> str:
+        disease_slug = self._slugify(disease_name or "unknown-disease")
+        extension = {
+            "image/png": ".png",
+            "image/jpeg": ".jpg",
+            "image/webp": ".webp",
+        }.get(mime_type, ".png")
+        return f"{disease_slug}_{capture_date}{extension}"
+
+    def resolve_hierarchical_folder(
+        self,
+        root_folder_id: str,
+        doctor_name: str,
+        patient_name: str,
+        category_name: str,
+        credentials: Credentials | None = None,
+    ) -> tuple[str, str]:
+        # Ensure the CureQuest root folder exists under the global Drive folder ID
+        curequest_root = self.get_or_create_subfolder(
+            parent_folder_id=root_folder_id,
+            folder_name="CureQuest",
+            credentials=credentials,
+        )
+        doctor_folder = self.get_or_create_subfolder(
+            parent_folder_id=curequest_root,
+            folder_name=f"Doctor-{doctor_name}",
+            credentials=credentials,
+        )
+        patient_folder = self.get_or_create_subfolder(
+            parent_folder_id=doctor_folder,
+            folder_name=f"Patient-{patient_name}",
+            credentials=credentials,
+        )
+        category_folder = self.get_or_create_subfolder(
+            parent_folder_id=patient_folder,
+            folder_name=category_name,
+            credentials=credentials,
+        )
+        return category_folder, f"CureQuest/Doctor-{doctor_name}/Patient-{patient_name}/{category_name}"
+
+    def _ensure_unique_name(
+        self,
+        folder_id: str,
+        file_name: str,
+        credentials: Credentials | None = None,
+    ) -> str:
+        service = self._service(credentials)
+        stem = Path(file_name).stem
+        suffix = Path(file_name).suffix
+        candidate = file_name
+        version = 1
+
+        while True:
+            query = (
+                f"name = '{candidate}' "
+                f"and '{folder_id}' in parents "
+                "and trashed = false"
+            )
+            results = service.files().list(q=query, fields="files(id)", pageSize=1).execute()
+            matches = results.get("files", [])
+            if not matches:
+                return candidate
+            version += 1
+            candidate = f"{stem}_v{version}{suffix}"
+
     def upload_file(
         self,
         file_path: str,
         mime_type: str = "application/octet-stream",
         folder_id: str | None = None,
+        file_name: str | None = None,
         credentials: Credentials | None = None,
     ) -> dict:
         """Upload a file to Google Drive.
@@ -88,10 +165,15 @@ class GoogleDriveAdapter:
         """
         service = self._service(credentials)
         path = Path(file_path)
-        metadata: dict[str, object] = {"name": path.name}
+        metadata: dict[str, object] = {"name": file_name or path.name}
 
         target_folder = folder_id or self.settings.google_drive_folder_id
         if target_folder:
+            metadata["name"] = self._ensure_unique_name(
+                folder_id=target_folder,
+                file_name=str(metadata["name"]),
+                credentials=credentials,
+            )
             metadata["parents"] = [target_folder]
 
         media = MediaFileUpload(str(path), mimetype=mime_type, resumable=False)
