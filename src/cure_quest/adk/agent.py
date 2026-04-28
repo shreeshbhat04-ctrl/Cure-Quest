@@ -70,6 +70,7 @@ root_agent = LlmAgent(
     tools=[
         McpToolset(
             connection_params=StdioConnectionParams(server_params=server_params),
+            tool_filter=["ping", "brain_healthcheck", "patient_context_summary"],
         ),
     ],
     sub_agents=[

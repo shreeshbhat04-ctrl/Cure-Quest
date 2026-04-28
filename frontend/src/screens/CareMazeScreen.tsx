@@ -27,6 +27,17 @@ import {
 import { EmptyState, LoadingState } from '../components/States';
 import { Pill, SectionShell, SoftCard } from '../components/ui';
 
+type BusyAction = 'maze' | 'calendar' | 'escalate' | 'location' | 'followup' | 'doctor-chat';
+
+function isValidHttpUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function CareMazeScreen({
   workspace,
   loading,
@@ -43,9 +54,7 @@ export function CareMazeScreen({
   const [supportResult, setSupportResult] = useState<DietSupportResponse | null>(null);
   const [destinations, setDestinations] = useState<CareDestinationSearchResponse | null>(null);
   const [routeResult, setRouteResult] = useState<CareMapRouteResponse | null>(null);
-  const [busyAction, setBusyAction] = useState<
-    'maze' | 'calendar' | 'escalate' | 'location' | 'followup' | 'doctor-chat' | null
-  >(null);
+  const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationSource, setLocationSource] = useState<'typed' | 'browser'>('typed');
@@ -56,6 +65,7 @@ export function CareMazeScreen({
   const [isDragOver, setIsDragOver] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [visionResult, setVisionResult] = useState<VisionUploadAnalyzeResponse | null>(null);
+  const busyActionRef = useRef<BusyAction | null>(null);
 
   if (loading && !workspace) return <LoadingState />;
   if (!workspace) {
@@ -70,10 +80,26 @@ export function CareMazeScreen({
   const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
   const primaryCondition = workspace.conditions[0]?.name ?? null;
   const latestCase = workspace.cases[0];
+  const isBusy = Boolean(busyAction);
+  const disabledButtonClass = 'disabled:cursor-not-allowed disabled:opacity-60';
+
+  const startBusyAction = (action: BusyAction) => {
+    if (busyActionRef.current || busyAction) return false;
+
+    busyActionRef.current = action;
+    setBusyAction(action);
+    return true;
+  };
+
+  const clearBusyAction = () => {
+    busyActionRef.current = null;
+    setBusyAction(null);
+  };
 
   const runMaze = async () => {
+    if (!startBusyAction('maze')) return;
+
     try {
-      setBusyAction('maze');
       setFeedback(null);
 
       const destinationResult = await searchCareDestinations({
@@ -117,26 +143,28 @@ export function CareMazeScreen({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to map the care maze right now.');
     } finally {
-      setBusyAction(null);
+      clearBusyAction();
     }
   };
 
   const scheduleFollowUp = async () => {
+    if (!startBusyAction('calendar')) return;
+
     try {
-      setBusyAction('calendar');
       const result = await createCalendarEvent(patientId, 'Care Maze follow-up');
       setFeedback(result.html_link ? 'Calendar follow-up created successfully.' : 'Calendar event created.');
       await onRefresh();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to create the follow-up event.');
     } finally {
-      setBusyAction(null);
+      clearBusyAction();
     }
   };
 
   const createDoctorHandoff = async () => {
+    if (!startBusyAction('escalate')) return;
+
     try {
-      setBusyAction('escalate');
       const summary = visionResult
         ? `Care Maze review requested after ${visionResult.category.toLowerCase()} upload. ${visionResult.summary}`
         : `Care Maze review requested for ${medicationName} around ${locationQuery}.`;
@@ -151,17 +179,19 @@ export function CareMazeScreen({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to create the doctor handoff.');
     } finally {
-      setBusyAction(null);
+      clearBusyAction();
     }
   };
 
   const useCurrentLocation = async () => {
+    if (!startBusyAction('location')) return;
+
     if (!navigator.geolocation) {
       setFeedback('Browser geolocation is not available here. Use the typed location field instead.');
+      clearBusyAction();
       return;
     }
 
-    setBusyAction('location');
     setFeedback(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -171,13 +201,13 @@ export function CareMazeScreen({
         });
         setLocationSource('browser');
         setFeedback('Live location captured. The next route run will use browser coordinates.');
-        setBusyAction(null);
+        clearBusyAction();
       },
       (error) => {
         setFeedback(`Location access failed: ${error.message}. Using typed location instead.`);
         setLocationSource('typed');
         setLocationCoords(null);
-        setBusyAction(null);
+        clearBusyAction();
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
@@ -299,25 +329,29 @@ export function CareMazeScreen({
           <div className="flex flex-wrap gap-3">
             <button
               onClick={runMaze}
-              className="river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface"
+              disabled={isBusy}
+              className={`river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface ${disabledButtonClass}`}
             >
               {busyAction === 'maze' ? 'Mapping...' : 'Ask Agent to Map Route'}
             </button>
             <button
               onClick={useCurrentLocation}
-              className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high"
+              disabled={isBusy}
+              className={`river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high ${disabledButtonClass}`}
             >
               {busyAction === 'location' ? 'Locating...' : 'Use my location'}
             </button>
             <button
               onClick={scheduleFollowUp}
-              className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high"
+              disabled={isBusy}
+              className={`river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high ${disabledButtonClass}`}
             >
               {busyAction === 'calendar' ? 'Scheduling...' : 'Create follow-up'}
             </button>
             <button
               onClick={createDoctorHandoff}
-              className="river-stone-btn bg-secondary-container px-6 py-4 text-on-secondary-container"
+              disabled={isBusy}
+              className={`river-stone-btn bg-secondary-container px-6 py-4 text-on-secondary-container ${disabledButtonClass}`}
             >
               {busyAction === 'escalate' ? 'Sending...' : 'Send doctor handoff'}
             </button>
@@ -360,15 +394,19 @@ export function CareMazeScreen({
                       {latestCase.pharmacy_search_summary}
                     </p>
                   ) : null}
-                  {latestCase.external_ticket_url ? (
+                  {latestCase.external_ticket_url && isValidHttpUrl(latestCase.external_ticket_url) ? (
                     <a href={latestCase.external_ticket_url} target="_blank" rel="noreferrer" className="block hover:text-primary">
                       Open Asana case
                     </a>
+                  ) : latestCase.external_ticket_url ? (
+                    <p className="break-all">{latestCase.external_ticket_url}</p>
                   ) : null}
-                  {latestCase.calendar_event_url ? (
+                  {latestCase.calendar_event_url && isValidHttpUrl(latestCase.calendar_event_url) ? (
                     <a href={latestCase.calendar_event_url} target="_blank" rel="noreferrer" className="block hover:text-primary">
                       Open follow-up in Calendar
                     </a>
+                  ) : latestCase.calendar_event_url ? (
+                    <p className="break-all">{latestCase.calendar_event_url}</p>
                   ) : null}
                 </div>
               </>
@@ -496,7 +534,8 @@ export function CareMazeScreen({
                   </button>
                   <button
                     onClick={createDoctorHandoff}
-                    className="river-stone-btn bg-secondary-container px-5 py-3 text-on-secondary-container"
+                    disabled={isBusy}
+                    className={`river-stone-btn bg-secondary-container px-5 py-3 text-on-secondary-container ${disabledButtonClass}`}
                   >
                     {busyAction === 'escalate' ? 'Sending...' : 'Send doctor handoff'}
                   </button>
@@ -553,10 +592,12 @@ export function CareMazeScreen({
                   <p className="mt-3 text-sm leading-7 text-on-surface/65">{destination.notes}</p>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {destination.distance_km !== null ? <Pill>{destination.distance_km} km</Pill> : null}
-                    {destination.map_url ? (
+                    {destination.map_url && isValidHttpUrl(destination.map_url) ? (
                       <a href={destination.map_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
                         Open map
                       </a>
+                    ) : destination.map_url ? (
+                      <span className="break-all text-sm text-on-surface/55">{destination.map_url}</span>
                     ) : null}
                   </div>
                 </div>
@@ -602,10 +643,12 @@ export function CareMazeScreen({
                   </div>
                 ))}
               </div>
-              {routeResult.map_url ? (
+              {routeResult.map_url && isValidHttpUrl(routeResult.map_url) ? (
                 <a href={routeResult.map_url} target="_blank" rel="noreferrer" className="mt-5 text-sm text-primary hover:underline">
                   Open directions in Google Maps
                 </a>
+              ) : routeResult.map_url ? (
+                <p className="mt-5 break-all text-sm text-on-surface/55">{routeResult.map_url}</p>
               ) : null}
             </SoftCard>
           ) : null}

@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -173,6 +174,16 @@ class MedicineGroundedAnswerResponse(BaseModel):
     safety_summary: str
     source_used: str
     wiki_link: str | None = None
+
+
+class DrugLabelRequest(BaseModel):
+    medication_name: str
+
+
+class DrugLabelResponse(BaseModel):
+    medication_name: str
+    found: bool
+    label: dict | None = None
 
 
 class PharmacySearchRequest(BaseModel):
@@ -665,6 +676,23 @@ class MedSigLIPClassificationResponse(BaseModel):
     result: list | dict
 
 
+class MedGemmaRequest(BaseModel):
+    patient_id: int
+    prompt: str
+    image_path: str | None = None
+    max_new_tokens: int = 128
+
+
+class MedGemmaResponse(BaseModel):
+    patient_id: int
+    profile: dict | None = None
+    provider: str
+    model: str
+    prompt: str
+    image_path: str | None = None
+    result: Any
+
+
 class DocumentFlowRequest(BaseModel):
     patient_id: int
     image_reference: str | None = None
@@ -800,8 +828,11 @@ class ChatThreadCreateRequest(BaseModel):
     subject: str = "General consultation"
 
 
+SenderRole = Literal["patient", "doctor"]
+
+
 class ChatMessageCreateRequest(BaseModel):
-    sender_role: str  # "patient" or "doctor"
+    sender_role: SenderRole
     sender_display_name: str
     body: str
 
@@ -809,7 +840,7 @@ class ChatMessageCreateRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     id: int
     thread_id: int
-    sender_role: str
+    sender_role: SenderRole
     sender_display_name: str
     body: str
     created_at: str

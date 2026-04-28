@@ -1,5 +1,4 @@
 from mcp.server.fastmcp import FastMCP
-from urllib.parse import quote_plus
 
 from cure_quest.adapters.analytics import BigQueryAnalyticsAdapter
 from cure_quest.db.session import SessionLocal

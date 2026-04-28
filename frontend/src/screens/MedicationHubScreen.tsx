@@ -213,7 +213,7 @@ export function MedicationHubScreen({
   const [groundedAnswer, setGroundedAnswer] = useState<MedicineGroundedAnswerResponse | null>(null);
   const [tutorials, setTutorials] = useState<DietRecipeTutorialResponse | null>(null);
   const [ingredients, setIngredients] = useState<MarketIngredientResponse | null>(null);
-  const [busy, setBusy] = useState<'alternatives' | 'label' | null>(null);
+  const [busy, setBusy] = useState<'alternatives' | 'groundedAnswer' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [dietSupport, setDietSupport] = useState<DietSupportResponse | null>(null);
   const [dietSupportError, setDietSupportError] = useState<string | null>(null);
@@ -373,9 +373,9 @@ export function MedicationHubScreen({
 
   const runGroundedAnswerLookup = async () => {
     try {
-      setBusy('label');
+      setBusy('groundedAnswer');
       setFeedback(null);
-      const result = await fetchMedicineGroundedAnswer(medicationName);
+      const result = await fetchMedicineGroundedAnswer(patientId, medicationName);
       setGroundedAnswer(result);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to fetch the grounded answer.');
@@ -439,7 +439,8 @@ export function MedicationHubScreen({
   };
 
   const askUploadFollowUp = async () => {
-    if (!uploadResult) return;
+    if (!uploadResult || uploadActionBusy) return;
+
     try {
       setUploadActionBusy('followup');
       const response = await sendTextMessage(
@@ -455,7 +456,8 @@ export function MedicationHubScreen({
   };
 
   const handoffUploadToDoctor = async () => {
-    if (!uploadResult) return;
+    if (!uploadResult || uploadActionBusy) return;
+
     try {
       setUploadActionBusy('handoff');
       const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
@@ -475,7 +477,8 @@ export function MedicationHubScreen({
   };
 
   const chatAboutUploadWithDoctor = async () => {
-    if (!uploadResult) return;
+    if (!uploadResult || uploadActionBusy) return;
+
     try {
       setUploadActionBusy('doctor-chat');
       const primaryDoctor = workspace.doctors.find((doctor) => doctor.is_default) ?? workspace.doctors[0] ?? null;
@@ -526,8 +529,8 @@ export function MedicationHubScreen({
             <button onClick={runAlternativeCheck} className="river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface">
               {busy === 'alternatives' ? 'Checking...' : 'Check alternatives'}
             </button>
-            <button onClick={runDrugLabelLookup} className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high">
-              {busy === 'label' ? 'Looking up...' : 'Fetch openFDA label'}
+            <button onClick={runGroundedAnswerLookup} className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high">
+              {busy === 'groundedAnswer' ? 'Looking up...' : 'Fetch grounded answer'}
             </button>
           </div>
 
@@ -692,21 +695,24 @@ export function MedicationHubScreen({
                   <button
                     type="button"
                     onClick={askUploadFollowUp}
-                    className="river-stone-btn bg-surface-container-low px-5 py-3 text-on-surface/80"
+                    disabled={uploadActionBusy !== null}
+                    className="river-stone-btn bg-surface-container-low px-5 py-3 text-on-surface/80 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadActionBusy === 'followup' ? 'Preparing...' : 'Ask follow-up'}
                   </button>
                   <button
                     type="button"
                     onClick={handoffUploadToDoctor}
-                    className="river-stone-btn bg-secondary-container px-5 py-3 text-on-secondary-container"
+                    disabled={uploadActionBusy !== null}
+                    className="river-stone-btn bg-secondary-container px-5 py-3 text-on-secondary-container disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadActionBusy === 'handoff' ? 'Sending...' : 'Send doctor handoff'}
                   </button>
                   <button
                     type="button"
                     onClick={chatAboutUploadWithDoctor}
-                    className="river-stone-btn bg-primary-fixed/40 px-5 py-3 text-primary"
+                    disabled={uploadActionBusy !== null}
+                    className="river-stone-btn bg-primary-fixed/40 px-5 py-3 text-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadActionBusy === 'doctor-chat' ? 'Preparing...' : 'Chat with doctor'}
                   </button>
@@ -1193,24 +1199,6 @@ export function MedicationHubScreen({
         </div>
       </section>
 
-      {drugLabel ? (
-        <SoftCard className="bg-surface-container-low">
-          <h3 className="font-serif text-2xl text-primary">openFDA snapshot</h3>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-[1.5rem] bg-surface px-5 py-4">
-              <p className="text-sm uppercase tracking-[0.18em] text-primary/65">Medication</p>
-              <p className="mt-2 text-lg">{drugLabel.medication_name}</p>
-            </div>
-            <div className="rounded-[1.5rem] bg-surface px-5 py-4">
-              <p className="text-sm uppercase tracking-[0.18em] text-primary/65">Label found</p>
-              <p className="mt-2 text-lg">{drugLabel.found ? 'Yes' : 'No'}</p>
-            </div>
-          </div>
-          <pre className="mt-5 overflow-x-auto rounded-[1.5rem] bg-surface px-5 py-4 text-xs leading-6 text-on-surface/70">
-            {JSON.stringify(drugLabel.label, null, 2)}
-          </pre>
-        </SoftCard>
-      ) : null}
     </motion.div>
   );
 }

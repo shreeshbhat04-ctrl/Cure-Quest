@@ -34,7 +34,7 @@ export {
 
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
-const API_BASE = API_BASE_URL;
+
 export const DEMO_PATIENT_ID = Number(import.meta.env.VITE_DEMO_PATIENT_ID ?? '2');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -721,41 +721,37 @@ export async function generateDietRecipes(payload: GenerateDietRecipesPayload): 
   });
 }
 
-export async function fetchMedicineGroundedAnswer(medicationName: string): Promise<MedicineGroundedAnswerResponse> {
-  const patientIdStr = localStorage.getItem('cure_quest_demo_patient_id');
-  if (!patientIdStr) {
-    throw new Error('Patient ID not found in local storage.');
+export async function fetchMedicineGroundedAnswer(patientId: number, medicationName: string): Promise<MedicineGroundedAnswerResponse> {
+  if (!Number.isFinite(patientId)) {
+    throw new Error('A valid patient id is required to fetch a grounded medicine answer.');
   }
-  const patientId = Number(patientIdStr);
-  const res = await fetch(`${API_BASE}/medicine/grounded-answer`, {
+
+  return request<MedicineGroundedAnswerResponse>('/medicine/grounded-answer', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patient_id: patientId, medication_name: medicationName }),
   });
-  if (!res.ok) throw new Error('Failed to fetch grounded answer');
-  return res.json();
 }
 
 export async function fetchRecentRecipes(patientId: number) {
-  const res = await fetch(`${API_BASE}/diet/recipes/recent?patient_id=${patientId}`);
+  const res = await fetch(`${API_BASE_URL}/diet/recipes/recent?patient_id=${patientId}`);
   if (!res.ok) throw new Error('Failed to fetch recent recipes');
   return res.json();
 }
 
 export async function saveDietRecipe(recipeId: string) {
-  const res = await fetch(`${API_BASE}/diet/recipes/${recipeId}/save`, { method: 'POST' });
+  const res = await fetch(`${API_BASE_URL}/diet/recipes/${recipeId}/save`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to save recipe');
   return res.json();
 }
 
 export async function fetchRecipeTutorials(recipeId: string): Promise<DietRecipeTutorialResponse> {
-  const res = await fetch(`${API_BASE}/diet/recipes/${recipeId}/tutorials`);
+  const res = await fetch(`${API_BASE_URL}/diet/recipes/${recipeId}/tutorials`);
   if (!res.ok) throw new Error('Failed to fetch tutorials');
   return res.json();
 }
 
 export async function fetchMarketIngredients(patientId: number, recipeId?: string): Promise<MarketIngredientResponse> {
-  const url = new URL(`${API_BASE}/market/ingredients`);
+  const url = new URL(`${API_BASE_URL}/market/ingredients`);
   url.searchParams.set('patient_id', patientId.toString());
   if (recipeId) url.searchParams.set('recipe_id', recipeId);
   const res = await fetch(url.toString());
@@ -1079,13 +1075,13 @@ export async function fetchChatThreads(opts: { patient_id?: number; doctor_id?: 
   const params = new URLSearchParams();
   if (opts.patient_id !== undefined) params.set('patient_id', opts.patient_id.toString());
   if (opts.doctor_id !== undefined) params.set('doctor_id', opts.doctor_id.toString());
-  const res = await fetch(`${API_BASE}/chat/threads?${params.toString()}`);
+  const res = await fetch(`${API_BASE_URL}/chat/threads?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch chat threads');
   return res.json();
 }
 
 export async function createChatThread(patientId: number, doctorId: number, subject?: string): Promise<ChatThreadItem> {
-  const res = await fetch(`${API_BASE}/chat/threads`, {
+  const res = await fetch(`${API_BASE_URL}/chat/threads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patient_id: patientId, doctor_id: doctorId, subject: subject || 'General consultation' }),
@@ -1095,13 +1091,13 @@ export async function createChatThread(patientId: number, doctorId: number, subj
 }
 
 export async function fetchChatMessages(threadId: number): Promise<{ thread_id: number; messages: ChatMessageItem[] }> {
-  const res = await fetch(`${API_BASE}/chat/threads/${threadId}/messages`);
+  const res = await fetch(`${API_BASE_URL}/chat/threads/${threadId}/messages`);
   if (!res.ok) throw new Error('Failed to fetch messages');
   return res.json();
 }
 
 export async function sendChatMessage(threadId: number, senderRole: string, senderName: string, body: string): Promise<ChatMessageItem> {
-  const res = await fetch(`${API_BASE}/chat/threads/${threadId}/messages`, {
+  const res = await fetch(`${API_BASE_URL}/chat/threads/${threadId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sender_role: senderRole, sender_display_name: senderName, body }),

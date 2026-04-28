@@ -126,24 +126,36 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
     return () => { active = false; };
   }, [selectedDoctorId]);
 
-  // Load messages when active thread changes
+  // Load messages while the chat tab is visible.
   useEffect(() => {
-    if (!activeThreadId) return;
+    if (activeTab !== 'chat' || !activeThreadId) return;
+
     let active = true;
+    let inFlight = false;
+
     const loadMessages = async () => {
+      if (inFlight) return;
+
+      inFlight = true;
       try {
         const result = await fetchChatMessages(activeThreadId);
         if (!active) return;
         setChatMessages(result.messages);
       } catch (err) {
         console.error(err);
+      } finally {
+        inFlight = false;
       }
     };
+
     void loadMessages();
-    // Poll every 15 seconds
     const interval = setInterval(loadMessages, 15000);
-    return () => { active = false; clearInterval(interval); };
-  }, [activeThreadId]);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activeTab, activeThreadId]);
 
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !activeThreadId || !selectedDoctor || isSending) return;

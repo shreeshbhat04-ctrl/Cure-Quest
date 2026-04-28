@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     bigquery_table_id: str = "integration_events"
     openfda_api_key: str | None = None
     google_maps_api_key: str | None = None
+    use_synthetic_maps: bool = False
     medical_model_backend: Literal["placeholder", "huggingface", "vertex"] = "placeholder"
     huggingface_hub_token: str | None = None
     medsiglip_model_id: str = "google/medsiglip-448"

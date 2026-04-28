@@ -2,6 +2,7 @@ import logging
 from datetime import date
 from urllib.parse import quote_plus
 import zlib
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import time
@@ -214,6 +215,114 @@ class IntegrationAgent:
         joined = "|".join(parts)
         return zlib.crc32(joined.encode("utf-8")) or 1
 
+    def _allow_synthetic_maps(self) -> bool:
+        settings = self.drive.settings
+        return settings.use_synthetic_maps and settings.app_env != "production"
+
+    def _search_real_care_destinations(
+        self,
+        normalized_type: str,
+        location_label: str,
+        context_name: str,
+    ) -> dict | None:
+        settings = self.drive.settings
+        if not settings.google_maps_api_key:
+            return None
+
+        query = f"{normalized_type} near {location_label}"
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(
+                "https://maps.googleapis.com/maps/api/place/textsearch/json",
+                params={"query": query, "key": settings.google_maps_api_key},
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        places = payload.get("results", [])[:3]
+        destinations = []
+        for place in places:
+            name = place.get("name") or f"Nearby {normalized_type.title()}"
+            address = place.get("formatted_address") or location_label
+            destination_query = f"{name}, {address}"
+            destinations.append(
+                {
+                    "name": name,
+                    "destination_type": normalized_type,
+                    "address": address,
+                    "distance_km": None,
+                    "eta_minutes": None,
+                    "map_query": destination_query,
+                    "map_url": self._build_google_maps_link(destination_query),
+                    "notes": f"Live Google Maps result for {context_name} support.",
+                }
+            )
+
+        return {
+            "provider": "google_maps_places",
+            "source_used": "google_maps_places_text_search",
+            "searched_location": location_label,
+            "destination_type": normalized_type,
+            "summary": (
+                f"Found {len(destinations)} live {normalized_type} options around {location_label} "
+                "using Google Maps Places."
+            ),
+            "destinations": destinations,
+        }
+
+    def _build_real_care_route(
+        self,
+        destination_name: str,
+        destination_type: str,
+        origin_label: str,
+        destination_label: str,
+        context_hint: str,
+    ) -> dict | None:
+        settings = self.drive.settings
+        if not settings.google_maps_api_key:
+            return None
+
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(
+                "https://maps.googleapis.com/maps/api/directions/json",
+                params={
+                    "origin": origin_label,
+                    "destination": destination_label,
+                    "key": settings.google_maps_api_key,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        route = (payload.get("routes") or [{}])[0]
+        leg = (route.get("legs") or [{}])[0]
+        distance_text = (leg.get("distance") or {}).get("text")
+        duration_text = (leg.get("duration") or {}).get("text")
+        steps = [
+            step.get("html_instructions", "").replace("<b>", "").replace("</b>", "")
+            for step in leg.get("steps", [])[:5]
+            if step.get("html_instructions")
+        ]
+        if not steps:
+            steps = [f"Open Google Maps directions for live route details to {destination_name}."]
+
+        route_url = self._build_google_maps_directions(origin_label, destination_label)
+        return {
+            "source_used": "google_maps_directions",
+            "origin_label": origin_label,
+            "destination_label": destination_name,
+            "destination_type": destination_type,
+            "route_summary": (
+                f"Live route to {destination_name} from {origin_label}"
+                f"{f' is about {distance_text}' if distance_text else ''}"
+                f"{f' and {duration_text}' if duration_text else ''}."
+            ),
+            "estimated_minutes": None,
+            "distance_km": None,
+            "map_query": f"{destination_name}, {destination_label}",
+            "map_url": route_url,
+            "steps": [*steps, f"Keep {context_hint} context ready during check-in or pickup."],
+        }
+
     def search_nearby_care_destinations(
         self,
         destination_type: str,
@@ -226,6 +335,23 @@ class IntegrationAgent:
         normalized_type = (destination_type or "pharmacy").strip().lower() or "pharmacy"
         location_label = self._format_location_label(location_query, latitude, longitude)
         context_name = medication_name or condition_name or "general care"
+        real_result = self._search_real_care_destinations(normalized_type, location_label, context_name)
+        if real_result is not None:
+            return real_result
+
+        if not self._allow_synthetic_maps():
+            return {
+                "provider": "google_maps_unavailable",
+                "source_used": "maps_integration_unavailable",
+                "searched_location": location_label,
+                "destination_type": normalized_type,
+                "summary": (
+                    "Live care destination search is unavailable because Google Maps is not configured. "
+                    "No synthetic care locations were returned."
+                ),
+                "destinations": [],
+            }
+
         seed = self._deterministic_seed(location_label, normalized_type, context_name)
 
         suffixes = ["Central", "Community", "Rapid Care"]
@@ -238,29 +364,29 @@ class IntegrationAgent:
             destination_query = f"{name}, {address}"
             destinations.append(
                 {
-                    "name": name,
+                    "name": f"DEMO/SYNTHETIC - {name}",
                     "destination_type": normalized_type,
-                    "address": address,
+                    "address": f"DEMO/SYNTHETIC - {address}",
                     "distance_km": distance_km,
                     "eta_minutes": eta_minutes,
                     "map_query": destination_query,
                     "map_url": self._build_google_maps_link(destination_query),
                     "notes": (
-                        f"Recommended for {context_name} support."
+                        f"DEMO/SYNTHETIC preview only. Recommended for {context_name} support."
                         if context_name
-                        else f"Recommended nearby {normalized_type} option."
+                        else f"DEMO/SYNTHETIC preview only. Recommended nearby {normalized_type} option."
                     ),
                 }
             )
 
-        source_used = "caremaze_synthetic_preview"
+        source_used = "DEMO/SYNTHETIC caremaze_synthetic_preview"
         return {
-            "provider": "caremaze_map_agent",
+            "provider": "DEMO/SYNTHETIC caremaze_map_agent",
             "source_used": source_used,
             "searched_location": location_label,
             "destination_type": normalized_type,
             "summary": (
-                f"Generated {len(destinations)} nearby {normalized_type} options around {location_label} "
+                f"DEMO/SYNTHETIC preview: generated {len(destinations)} nearby {normalized_type} options around {location_label} "
                 f"using {source_used}."
             ),
             "destinations": destinations,
@@ -279,16 +405,43 @@ class IntegrationAgent:
     ) -> dict:
         origin_label = self._format_location_label(location_query, latitude, longitude)
         destination_label = destination_address or destination_name
+        context_hint = medication_name or condition_name or destination_type
+        real_result = self._build_real_care_route(
+            destination_name=destination_name,
+            destination_type=destination_type,
+            origin_label=origin_label,
+            destination_label=destination_label,
+            context_hint=context_hint,
+        )
+        if real_result is not None:
+            return real_result
+
+        if not self._allow_synthetic_maps():
+            return {
+                "source_used": "maps_integration_unavailable",
+                "origin_label": origin_label,
+                "destination_label": destination_name,
+                "destination_type": destination_type,
+                "route_summary": (
+                    "Live route building is unavailable because Google Maps is not configured. "
+                    "No synthetic route, ETA, or distance was returned."
+                ),
+                "estimated_minutes": None,
+                "distance_km": None,
+                "map_query": f"{destination_name}, {destination_label}",
+                "map_url": self._build_google_maps_directions(origin_label, destination_label),
+                "steps": ["Open Google Maps for live route details once maps integration is configured."],
+            }
+
         route_seed = self._deterministic_seed(origin_label, destination_label, destination_type)
         distance_km = round(((route_seed % 11) + 3) * 0.45, 1)
         estimated_minutes = max(8, int(distance_km * 7))
-        context_hint = medication_name or condition_name or destination_type
         route_url = self._build_google_maps_directions(origin_label, destination_label)
-        source_used = "caremaze_synthetic_preview"
+        source_used = "DEMO/SYNTHETIC caremaze_synthetic_preview"
         steps = [
-            f"Start from {origin_label}.",
-            f"Head toward {destination_name} for {destination_type} support.",
-            f"Keep {context_hint} context ready during check-in or pickup.",
+            f"DEMO/SYNTHETIC preview only: start from {origin_label}.",
+            f"DEMO/SYNTHETIC preview only: head toward {destination_name} for {destination_type} support.",
+            f"DEMO/SYNTHETIC preview only: keep {context_hint} context ready during check-in or pickup.",
         ]
         return {
             "source_used": source_used,
@@ -296,7 +449,7 @@ class IntegrationAgent:
             "destination_label": destination_name,
             "destination_type": destination_type,
             "route_summary": (
-                f"Best route to {destination_name} from {origin_label} is about "
+                f"DEMO/SYNTHETIC preview: route to {destination_name} from {origin_label} is about "
                 f"{distance_km} km and {estimated_minutes} minutes."
             ),
             "estimated_minutes": estimated_minutes,

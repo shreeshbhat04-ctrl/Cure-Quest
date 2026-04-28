@@ -5,6 +5,19 @@ import type { WorkspacePayload } from '../lib/api';
 import { ErrorState, LoadingState } from '../components/States';
 import { Pill, SectionShell } from '../components/ui';
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatRoutineDueDate(dueAt?: string | null, dueOn?: string | null) {
+  if (!dueAt) return dueOn;
+
+  if (DATE_ONLY_PATTERN.test(dueAt)) {
+    const [year, month, day] = dueAt.split('-').map(Number);
+    return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(year, month - 1, day));
+  }
+
+  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(dueAt));
+}
+
 export function DashboardScreen({
   workspace,
   loading,
@@ -111,9 +124,7 @@ export function DashboardScreen({
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             {checkin.routine_tasks.slice(0, 4).map((task) => {
-              const formattedDue = task.due_at
-                ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(task.due_at))
-                : task.due_on;
+              const formattedDue = formatRoutineDueDate(task.due_at, task.due_on);
 
               return (
                 <div key={task.task_id} className="rounded-[1.25rem] bg-surface-container-lowest/30 p-6 glass-edge">

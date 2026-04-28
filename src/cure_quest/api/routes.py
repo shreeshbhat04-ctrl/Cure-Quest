@@ -31,6 +31,8 @@ from cure_quest.api.models import (
     DoctorResponse,
     DocumentFlowRequest,
     DocumentFlowResponse,
+    DrugLabelRequest,
+    DrugLabelResponse,
     DocumentPipelineRequest,
     DocumentPipelineResponse,
     DriveUploadRequest,
@@ -57,6 +59,8 @@ from cure_quest.api.models import (
     MedicineGroundedAnswerResponse,
     DietRecipeTutorialResponse,
     MarketIngredientResponse,
+    MedGemmaRequest,
+    MedGemmaResponse,
     MedSigLIPClassificationRequest,
     MedSigLIPClassificationResponse,
     NotifyRequest,
@@ -803,7 +807,14 @@ def _resolve_doctor_for_patient(
     doctor_id: int | None = None,
 ) -> Doctor | None:
     if doctor_id is not None:
-        return db.scalar(select(Doctor).where(Doctor.id == doctor_id))
+        return db.scalar(
+            select(Doctor)
+            .join(PatientDoctorMap, PatientDoctorMap.doctor_id == Doctor.id)
+            .where(
+                Doctor.id == doctor_id,
+                PatientDoctorMap.patient_id == patient_id,
+            )
+        )
 
     mapping = db.scalar(
         select(PatientDoctorMap)

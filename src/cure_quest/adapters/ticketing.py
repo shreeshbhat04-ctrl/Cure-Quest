@@ -113,7 +113,7 @@ class MockTicketingAdapter(TicketingAdapter):
             {
                 "gid": "mock-doctor-1",
                 "name": "Dr surgeon",
-                "email": "sreeshhb@gmail.com",
+                "email": "doctor@example.com",
             }
         ]
 
@@ -277,15 +277,15 @@ class AsanaTicketingAdapter(TicketingAdapter):
 
 def build_ticketing_adapter() -> TicketingAdapter:
     settings = get_settings()
-    if settings.asana_access_token and (settings.asana_project_gid or settings.asana_workspace_gid):
+    if settings.asana_access_token and settings.asana_project_gid:
         return AsanaTicketingAdapter()
     return MockTicketingAdapter()
 
 
-def _short_summary(notes: str | None, fallback: str) -> str:
+def _short_summary(notes: str | None, fallback: str, max_length: int = 96) -> str:
     if notes:
         normalized = " ".join(notes.split())
-        if len(normalized) <= 96:
+        if len(normalized) <= max_length:
             return normalized
-        return normalized[:93].rstrip() + "..."
+        return normalized[: max_length - 3].rstrip() + "..."
     return fallback

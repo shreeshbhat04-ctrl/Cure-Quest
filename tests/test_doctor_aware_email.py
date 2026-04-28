@@ -81,13 +81,13 @@ def test_confirm_action_send_email_resolves_doctor_and_persists_notification() -
     assert "Asha Rao" in sent_email["body_html"]
 
 
-def test_send_gmail_care_summary_resolves_doctor_id_and_persists_notification() -> None:
+def test_send_gmail_care_summary_resolves_doctor_id_and_persists_notification(monkeypatch) -> None:
     orchestrator, patient_id, doctor_id = _seed_patient_and_doctor()
 
     with SessionLocal() as db:
         from cure_quest.api import routes
 
-        routes.orchestrator = orchestrator
+        monkeypatch.setattr(routes, "orchestrator", orchestrator)
         result = send_gmail_care_summary(
             patient_id=patient_id,
             to_email=None,

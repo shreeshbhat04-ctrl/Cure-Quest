@@ -1,5 +1,6 @@
 import re
 import json
+from html import escape
 from datetime import datetime
 from datetime import timedelta
 
@@ -608,16 +609,17 @@ class Orchestrator:
         doctor_name: str | None = None,
     ) -> str:
         conditions = self.temporal_memory.get_relevant_conditions(patient_id)
-        condition_names = [item.name for item in conditions if item.name][:3]
+        condition_names = [escape(item.name) for item in conditions if item.name][:3]
         recent_prescriptions = db.scalars(
             select(Prescription)
             .where(Prescription.patient_id == patient_id)
             .order_by(Prescription.created_at.desc())
         ).all()[:3]
 
-        clean_request = re.sub(r"[\w.\-+]+@[\w.\-]+\.\w+", "[recipient]", message).strip()
-        patient_display_name = patient_name or f"patient {patient_id}"
-        doctor_display_name = doctor_name or "Doctor"
+        clean_request = escape(re.sub(r"[\w.\-+]+@[\w.\-]+\.\w+", "[recipient]", message).strip())
+        patient_display_name = escape(patient_name or f"patient {patient_id}")
+        doctor_display_name = escape(doctor_name or "Doctor")
+        escaped_patient_summary = escape(patient_summary) if patient_summary else None
         sent_on = datetime.now().strftime("%Y-%m-%d")
 
         sections: list[str] = [
@@ -628,8 +630,8 @@ class Orchestrator:
             ),
         ]
 
-        if patient_summary:
-            sections.append(f"<p><strong>Patient Summary:</strong> {patient_summary}</p>")
+        if escaped_patient_summary:
+            sections.append(f"<p><strong>Patient Summary:</strong> {escaped_patient_summary}</p>")
 
         if condition_names:
             sections.append(
@@ -640,10 +642,12 @@ class Orchestrator:
 
         if recent_prescriptions:
             medication_summary = ", ".join(
-                f"{item.medication_name}{f' {item.dosage}' if item.dosage else ''}".strip()
+                f"{escape(item.medication_name)}{f' {escape(item.dosage)}' if item.dosage else ''}".strip()
                 for item in recent_prescriptions
+                if item.medication_name
             )
-            sections.append(f"<p><strong>Recent Prescription History:</strong> {medication_summary}</p>")
+            if medication_summary:
+                sections.append(f"<p><strong>Recent Prescription History:</strong> {medication_summary}</p>")
 
         sections.append(f"<p><strong>Patient Request:</strong> {clean_request}</p>")
         sections.extend(
