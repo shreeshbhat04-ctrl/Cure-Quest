@@ -154,12 +154,6 @@ export function CareMazeScreen({
             <button onClick={runMaze} className="river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface">
               {busyAction === 'maze' ? 'Asking Agent...' : 'Ask Agent to Map Route'}
             </button>
-            <button onClick={scheduleFollowUp} className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high">
-              {busyAction === 'calendar' ? 'Scheduling...' : 'Create follow-up'}
-            </button>
-            <button onClick={createDoctorHandoff} className="river-stone-btn bg-secondary-container px-6 py-4 text-on-secondary-container">
-              {busyAction === 'escalate' ? 'Sending...' : 'Send doctor handoff'}
-            </button>
           </div>
 
           {feedback ? <p className="rounded-[1.25rem] bg-surface-container-low px-4 py-3 text-sm leading-7 text-on-surface/70">{feedback}</p> : null}
@@ -304,6 +298,15 @@ export function CareMazeScreen({
               </div>
             )}
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 pt-4">
+          <button onClick={scheduleFollowUp} className="river-stone-btn bg-surface-container-low px-6 py-4 text-on-surface/75 hover:bg-surface-container-high">
+            {busyAction === 'calendar' ? 'Scheduling...' : 'Create follow-up'}
+          </button>
+          <button onClick={createDoctorHandoff} className="river-stone-btn bg-secondary-container px-6 py-4 text-on-secondary-container">
+            {busyAction === 'escalate' ? 'Sending...' : 'Send doctor handoff'}
+          </button>
         </div>
       </SoftCard>
 
