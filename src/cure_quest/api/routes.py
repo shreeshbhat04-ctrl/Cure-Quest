@@ -58,6 +58,8 @@ from cure_quest.api.models import (
     ChatMessageListResponse,
     MedicineGroundedAnswerResponse,
     DietRecipeTutorialResponse,
+    SaveDietRecipeResponse,
+    SavedDietRecipesResponse,
     MarketIngredientResponse,
     MedGemmaRequest,
     MedGemmaResponse,
@@ -105,6 +107,7 @@ from cure_quest.db.models import (
     PatientVital,
     PendingAction,
     Prescription,
+    SavedDietRecipe,
 )
 from cure_quest.db.session import get_db
 
@@ -1385,6 +1388,15 @@ def lookup_drug_label(payload: DrugLabelRequest) -> DrugLabelResponse:
     return DrugLabelResponse(**result)
 
 
+@router.post("/medicine/grounded-answer", response_model=MedicineGroundedAnswerResponse)
+def medicine_grounded_answer(payload: MedicineGroundedAnswerRequest) -> MedicineGroundedAnswerResponse:
+    result = orchestrator.get_medicine_grounded_answer(
+        patient_id=payload.patient_id,
+        medication_name=payload.medication_name,
+    )
+    return MedicineGroundedAnswerResponse(**result)
+
+
 @router.post("/pharmacy/search", response_model=PharmacySearchResponse)
 def pharmacy_search(payload: PharmacySearchRequest) -> PharmacySearchResponse:
     result = orchestrator.integrations.search_nearby_pharmacies(payload.location_query)
@@ -1591,6 +1603,50 @@ def generate_diet_recipes(payload: GenerateDietRecipesRequest) -> GenerateDietRe
     return GenerateDietRecipesResponse(**result)
 
 
+@router.get("/diet/recipes/recent", response_model=SavedDietRecipesResponse)
+def list_recent_saved_recipes(patient_id: int, db: Session = Depends(get_db)) -> SavedDietRecipesResponse:
+    """
+    Return the most recently saved diet recipes for a patient.
+
+    This is used by the Medication Hub "recent recipes" UI.
+    """
+    # Get saved IDs (most recent first)
+    saved_rows = db.execute(
+        select(SavedDietRecipe)
+        .where(SavedDietRecipe.patient_id == patient_id)
+        .order_by(SavedDietRecipe.created_at.desc())
+        .limit(12)
+    ).scalars().all()
+
+    saved_ids = [row.recipe_id for row in saved_rows]
+    if not saved_ids:
+        return SavedDietRecipesResponse(patient_id=patient_id, recipes=[])
+
+    # Hydrate recipes using existing curated list.
+    # NOTE: Saved recipes are curated/generated IDs; for now we hydrate from curated store only.
+    all_recipes = orchestrator.list_diet_recipes(patient_id=patient_id).get("recipes", [])
+    by_id = {str(item.get("recipe_id")): item for item in all_recipes if isinstance(item, dict)}
+    hydrated = [by_id[rid] for rid in saved_ids if rid in by_id]
+    return SavedDietRecipesResponse(patient_id=patient_id, recipes=hydrated)
+
+
+@router.post("/diet/recipes/{recipe_id}/save", response_model=SaveDietRecipeResponse)
+def save_diet_recipe(recipe_id: str, patient_id: int, db: Session = Depends(get_db)) -> SaveDietRecipeResponse:
+    """
+    Persist a saved recipe ID for "recent recipes".
+    """
+    existing = db.scalar(
+        select(SavedDietRecipe).where(
+            SavedDietRecipe.patient_id == patient_id,
+            SavedDietRecipe.recipe_id == recipe_id,
+        )
+    )
+    if existing is None:
+        db.add(SavedDietRecipe(patient_id=patient_id, recipe_id=recipe_id))
+        db.commit()
+    return SaveDietRecipeResponse(patient_id=patient_id, recipe_id=recipe_id, saved=True)
+
+
 @router.post("/diet/recipes/{recipe_id}/scale", response_model=ScaleDietRecipeResponse)
 def scale_diet_recipe(
     recipe_id: str,
@@ -1607,6 +1663,94 @@ def scale_diet_recipe(
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
     return ScaleDietRecipeResponse(recipe=recipe)
+
+
+@router.get("/diet/recipes/{recipe_id}/tutorials", response_model=DietRecipeTutorialResponse)
+def get_recipe_tutorials(recipe_id: str) -> DietRecipeTutorialResponse:
+    """Fetch a real YouTube tutorial for a given recipe using the YouTube Data API v3."""
+    import httpx
+    from cure_quest.config import get_settings
+
+    search_query = recipe_id.replace("_", " ").replace("-", " ").title() + " recipe"
+    fallback_url = f"https://www.youtube.com/results?search_query={search_query.replace(' ', '+')}"
+
+    settings = get_settings()
+    api_key = settings.google_maps_api_key
+    if not api_key:
+        return DietRecipeTutorialResponse(
+            recipe_id=recipe_id,
+            search_query=search_query,
+            youtube_url=fallback_url,
+        )
+
+    try:
+        resp = httpx.get(
+            "https://www.googleapis.com/youtube/v3/search",
+            params={
+                "part": "snippet",
+                "q": search_query,
+                "type": "video",
+                "maxResults": 1,
+                "key": api_key,
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+        if items:
+            video_id = items[0]["id"]["videoId"]
+            return DietRecipeTutorialResponse(
+                recipe_id=recipe_id,
+                search_query=search_query,
+                youtube_url=f"https://www.youtube.com/watch?v={video_id}",
+            )
+    except Exception:
+        pass
+
+    return DietRecipeTutorialResponse(
+        recipe_id=recipe_id,
+        search_query=search_query,
+        youtube_url=fallback_url,
+    )
+
+
+@router.get("/market/ingredients", response_model=MarketIngredientResponse)
+def get_market_ingredients(
+    patient_id: int,
+    recipe_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> MarketIngredientResponse:
+    """Return shopping search links for ingredients of a given recipe."""
+    ingredients: list[dict] = []
+
+    if recipe_id:
+        try:
+            result = orchestrator.list_diet_recipes(patient_id=patient_id)
+            recipes = result.get("recipes", [])
+            matched = next((r for r in recipes if r.get("recipe_id") == recipe_id), None)
+            if matched:
+                for ing in matched.get("ingredients", []):
+                    name = ing.get("name", "") if isinstance(ing, dict) else str(ing)
+                    if name:
+                        ingredients.append({
+                            "name": name,
+                            "search_url": f"https://www.bigbasket.com/ps/?q={name.replace(' ', '+')}",
+                        })
+        except Exception:
+            pass
+
+    if not ingredients:
+        fallback_items = ["rice", "dal", "turmeric", "ghee", "salt"]
+        ingredients = [
+            {"name": item, "search_url": f"https://www.bigbasket.com/ps/?q={item}"}
+            for item in fallback_items
+        ]
+
+    return MarketIngredientResponse(
+        patient_id=patient_id,
+        recipe_id=recipe_id,
+        ingredients=ingredients,
+    )
 
 
 @router.post("/orchestration/document-pipeline", response_model=DocumentPipelineResponse)
@@ -1716,6 +1860,8 @@ async def orchestration_voice_route_stream(
     sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', full_message) if s.strip()]
     
     async def audio_generator():
+        import asyncio
+        
         yield json.dumps({
             "type": "metadata",
             "transcript": transcript,
@@ -1727,6 +1873,7 @@ async def orchestration_voice_route_stream(
             "allow_custom_input": bool(result.get("allow_custom_input", False)),
         }) + "\n"
         
+        tasks = []
         for sentence in sentences:
             # Clean technical noise (URLs, paths) from the spoken text
             clean_sentence = re.sub(r'https?://\S+', '', sentence) # Remove URLs
@@ -1737,8 +1884,14 @@ async def orchestration_voice_route_stream(
             if not clean_sentence or len(clean_sentence) < 2:
                 continue
 
-            tts_result = orchestrator.integrations.synthesize_speech(clean_sentence)
-            if tts_result.get("audio_bytes"):
+            # Schedule synchronous TTS call in background thread concurrently
+            task = asyncio.to_thread(orchestrator.integrations.synthesize_speech, clean_sentence)
+            tasks.append(task)
+            
+        # Await tasks in original order so playback is sequential
+        for task in tasks:
+            tts_result = await task
+            if tts_result and tts_result.get("audio_bytes"):
                 audio_b64 = base64.b64encode(tts_result["audio_bytes"]).decode("utf-8")
                 yield json.dumps({"type": "audio", "chunk": audio_b64}) + "\n"
             

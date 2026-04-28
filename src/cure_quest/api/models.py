@@ -498,6 +498,17 @@ class DietRecipeTutorialResponse(BaseModel):
     youtube_url: str
 
 
+class SavedDietRecipesResponse(BaseModel):
+    patient_id: int
+    recipes: list[DietRecipe]
+
+
+class SaveDietRecipeResponse(BaseModel):
+    patient_id: int
+    recipe_id: str
+    saved: bool = True
+
+
 class MarketIngredientResponse(BaseModel):
     patient_id: int
     recipe_id: str | None = None

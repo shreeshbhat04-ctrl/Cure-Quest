@@ -122,6 +122,44 @@ class Orchestrator:
             medication_name=medication_name,
         )
 
+    def get_medicine_grounded_answer(self, patient_id: int, medication_name: str) -> dict:
+        """
+        Minimal grounded medicine answer for the frontend.
+
+        Current grounding source is the existing Wikipedia/OpenFDA adapter used by `/drug/label`.
+        This unblocks the Medication Hub flow until AlloyDB-grounded medicine lookup is implemented.
+        """
+        label = self.integrations.lookup_drug_label(medication_name)
+        found = bool(label.get("found"))
+        payload = label.get("label") or {}
+        wiki_link = payload.get("url") or payload.get("page_url") or payload.get("link")
+
+        # Keep this intentionally conservative: "safety_summary" is for UI display, not clinical advice.
+        if found:
+            summary_bits: list[str] = []
+            title = payload.get("title") or medication_name
+            if title:
+                summary_bits.append(f"Found reference information for {title}.")
+            snippet = payload.get("summary") or payload.get("extract") or payload.get("description")
+            if isinstance(snippet, str) and snippet.strip():
+                summary_bits.append(snippet.strip())
+            safety_summary = " ".join(summary_bits).strip() or "Reference information was found."
+            source_used = "wikipedia"
+        else:
+            safety_summary = (
+                "I couldn't find a reliable reference entry for this medication name yet. "
+                "Double-check spelling or try the generic name."
+            )
+            source_used = "unavailable"
+
+        return {
+            "patient_id": patient_id,
+            "medication_name": medication_name,
+            "safety_summary": safety_summary,
+            "source_used": source_used,
+            "wiki_link": wiki_link if isinstance(wiki_link, str) else None,
+        }
+
     def build_document_pipeline(self, patient_id: int, file_path: str, raw_text_hint: str | None = None, prescription_id: int | None = None) -> dict:
         return self.documents.build_document_intake_plan(
             patient_id=patient_id,
