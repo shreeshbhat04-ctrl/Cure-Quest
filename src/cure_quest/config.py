@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     medical_vector_table_name: str = "medical_memories_vector"
     gemini_fast_model_id: str = "gemini-3.1-flash-lite-preview"
     gemini_fast_fallback_model_ids: str = "gemini-2.5-flash,gemini-2.0-flash"
+    medgemma_model_id: str = "google/medgemma-2-9b"
     asana_access_token: str | None = None
     asana_project_gid: str | None = None
     asana_assignee_gid: str | None = None
@@ -87,6 +88,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
+        if self.app_env == "development":
+            return ["*"]
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property

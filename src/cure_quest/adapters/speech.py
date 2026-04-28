@@ -1,7 +1,10 @@
 import logging
 
 from google.cloud import speech
-from google.cloud import texttospeech
+from google import genai
+from google.genai import types
+import wave
+import io
 
 from cure_quest.config import get_settings
 
@@ -66,17 +69,34 @@ class GoogleSpeechAdapter:
             return " ".join(transcript_parts).strip()
 
     def synthesize_speech(self, text: str) -> bytes:
-        """Synthesize text into speech using Google Cloud TTS."""
-        client = texttospeech.TextToSpeechClient()
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="en-US",
-            name="en-US-Journey-F", # Premium Journey voice
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-        response = client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
-        )
-        return response.audio_content
+        """Synthesize text into speech using Gemini 3.1 Flash TTS."""
+        client = genai.Client(api_key=self.settings.google_api_key)
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.1-flash-tts-preview',
+                contents=text,
+                config=types.GenerateContentConfig(
+                    response_modalities=['AUDIO'],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name='Puck'
+                            )
+                        )
+                    )
+                )
+            )
+            for part in response.candidates[0].content.parts:
+                if part.inline_data:
+                    pcm_data = part.inline_data.data
+                    wav_io = io.BytesIO()
+                    with wave.open(wav_io, 'wb') as wav_file:
+                        wav_file.setnchannels(1)
+                        wav_file.setsampwidth(2) # 16-bit
+                        wav_file.setframerate(24000)
+                        wav_file.writeframes(pcm_data)
+                    return wav_io.getvalue()
+            raise ValueError("No audio data returned by Gemini TTS")
+        except Exception as e:
+            logger.error("Gemini TTS failed: %s", e)
+            return b""

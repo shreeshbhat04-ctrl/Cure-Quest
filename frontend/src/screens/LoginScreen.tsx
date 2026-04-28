@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Heart, Mail, HardDrive, Calendar, CheckCircle2 } from 'lucide-react';
 import logo from '../assets/logo.png';
-import { exchangeGoogleAuth, patient2Image, type GoogleAuthResponse } from '../lib/api';
+import { exchangeGoogleAuth, patient2Image, type GoogleAuthResponse, DEMO_PATIENT_ID } from '../lib/api';
 
 // Google OAuth Client ID — loaded from env or hardcoded fallback
 const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ?? '';
@@ -79,7 +79,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   const handleDevLogin = () => {
     setIsLoggingIn(true);
-    setTimeout(() => onLogin(2), 600);
+    setTimeout(() => onLogin(DEMO_PATIENT_ID), 600);
   };
 
   return (
@@ -122,7 +122,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 {authResult ? authResult.name : 'Shreesha'}
               </p>
               <p className="text-[0.88rem] leading-5 text-on-surface/50">
-                {authResult ? authResult.email : 'Patient ID: 2'}
+                {authResult ? authResult.email : `Patient ID: ${DEMO_PATIENT_ID}`}
               </p>
             </div>
           </div>
@@ -192,7 +192,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             disabled={isLoggingIn}
             className="w-full rounded-[1.75rem] px-6 py-3 text-[0.88rem] text-on-surface/45 transition-colors hover:bg-surface-container-low hover:text-on-surface/65 disabled:opacity-50"
           >
-            Skip (Dev mode — enter as Patient 2)
+            Skip (Dev mode — enter as Patient {DEMO_PATIENT_ID})
           </button>
 
           {/* Error message */}

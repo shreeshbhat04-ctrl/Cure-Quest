@@ -3,6 +3,9 @@ from sqlalchemy import inspect, text
 from cure_quest.config import get_settings
 from cure_quest.db.session import Base, engine
 import cure_quest.db.models  # noqa
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def init_database() -> None:
@@ -89,33 +92,34 @@ def _apply_lightweight_migrations() -> None:
     with engine.begin() as connection:
         if engine.dialect.name == "postgresql":
             try:
-                connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                connection.execute(
-                    text(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS {settings.medical_vector_table_name} (
-                            memory_id BIGINT PRIMARY KEY REFERENCES medical_memories(id) ON DELETE CASCADE,
-                            patient_id BIGINT NOT NULL,
-                            source_type TEXT NOT NULL,
-                            modality VARCHAR(32) NOT NULL,
-                            embedding_model VARCHAR(128) NOT NULL,
-                            embedding vector({settings.medical_embedding_dimensions}) NOT NULL,
-                            summary_text TEXT,
-                            created_at TIMESTAMPTZ DEFAULT NOW()
+                with connection.begin_nested():
+                    connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                    connection.execute(
+                        text(
+                            f"""
+                            CREATE TABLE IF NOT EXISTS {settings.medical_vector_table_name} (
+                                memory_id BIGINT PRIMARY KEY REFERENCES medical_memories(id) ON DELETE CASCADE,
+                                patient_id BIGINT NOT NULL,
+                                source_type TEXT NOT NULL,
+                                modality VARCHAR(32) NOT NULL,
+                                embedding_model VARCHAR(128) NOT NULL,
+                                embedding vector({settings.medical_embedding_dimensions}) NOT NULL,
+                                summary_text TEXT,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                            """
                         )
-                        """
                     )
-                )
-                connection.execute(
-                    text(
-                        f"""
-                        CREATE INDEX IF NOT EXISTS idx_{settings.medical_vector_table_name}_patient_id
-                        ON {settings.medical_vector_table_name} (patient_id)
-                        """
+                    connection.execute(
+                        text(
+                            f"""
+                            CREATE INDEX IF NOT EXISTS idx_{settings.medical_vector_table_name}_patient_id
+                            ON {settings.medical_vector_table_name} (patient_id)
+                            """
+                        )
                     )
-                )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to create vector extension/table: {e}")
 
         for table_name, columns in expected_columns.items():
             if table_name not in existing_tables:

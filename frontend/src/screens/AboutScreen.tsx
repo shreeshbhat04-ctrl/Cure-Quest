@@ -84,6 +84,16 @@ export function AboutScreen({
         </SoftCard>
       </div>
 
+      <SoftCard className="bg-surface-container-low">
+        <div className="flex items-center gap-3 text-tertiary">
+          <Brain className="h-5 w-5" />
+          <h3 className="font-serif text-[1.35rem]">Vision Processing</h3>
+        </div>
+        <p className="mt-4 text-[0.92rem] leading-7 text-on-surface/60">
+          MedSigLIP handles the uploaded image first for classification and feature extraction, then Gemini 3.1 Flash performs advanced medical reasoning to generate clinical insights.
+        </p>
+      </SoftCard>
+
       <div className="grid gap-6 md:grid-cols-3">
         <SoftCard className="bg-surface-container-low">
           <div className="flex items-center gap-3 text-primary">

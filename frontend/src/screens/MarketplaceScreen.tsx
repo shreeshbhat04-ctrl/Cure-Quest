@@ -8,7 +8,8 @@ import {
   Filter,
   TrendingUp,
   ShoppingCart,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import { INGREDIENTS, Ingredient } from '../lib/ingredients';
 import { Pill, SectionShell } from '../components/ui';
@@ -29,7 +30,12 @@ const ITEM = {
   show: { opacity: 1, y: 0 }
 };
 
-export function MarketplaceScreen() {
+interface MarketplaceScreenProps {
+  onAddIngredient?: (name: string) => void;
+  onClose?: () => void;
+}
+
+export function MarketplaceScreen({ onAddIngredient, onClose }: MarketplaceScreenProps = {}) {
   const [filter, setFilter] = useState<'All' | 'Fresh' | 'Pantry' | 'Protein' | 'Dairy'>('All');
   const [search, setSearch] = useState('');
   const [cartCount, setCartCount] = useState(0);
@@ -42,22 +48,35 @@ export function MarketplaceScreen() {
     });
   }, [filter, search]);
 
-  const handleAddToCart = (status: string) => {
-    if (status === 'Avoid') return;
+  const handleAddToCart = (item: Ingredient) => {
+    if (item.status === 'Avoid') return;
     setCartCount(prev => prev + 1);
+    if (onAddIngredient) {
+      onAddIngredient(item.name.toLowerCase());
+    }
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} className="space-y-8 pb-12">
-      <SectionShell
-        eyebrow="Marketplace"
-        title={
-          <>
-            Rx Pantry: <span className="text-primary italic font-serif">Curated Ingredients</span>
-          </>
-        }
-        description="Doctor-approved shopping list synchronized with your anti-inflammatory recovery protocol."
-      />
+      <div className="flex items-start justify-between">
+        <SectionShell
+          eyebrow="Marketplace"
+          title={
+            <>
+              Rx Pantry: <span className="text-primary italic font-serif">Curated Ingredients</span>
+            </>
+          }
+          description="Doctor-approved shopping list synchronized with your anti-inflammatory recovery protocol."
+        />
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="rounded-full bg-surface-container-high p-2 text-on-surface hover:bg-surface-container-highest transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Bento Stats Section */}
@@ -198,7 +217,7 @@ export function MarketplaceScreen() {
                     </div>
 
                     <button 
-                      onClick={() => handleAddToCart(item.status)}
+                      onClick={() => handleAddToCart(item)}
                       className={`w-full mt-5 py-3 rounded-xl text-[0.85rem] font-bold tracking-widest uppercase transition-all ${
                         item.status === 'Avoid' 
                         ? 'bg-surface-container-high/40 text-on-surface/20 cursor-not-allowed glass-edge' 

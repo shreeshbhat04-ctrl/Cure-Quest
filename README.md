@@ -130,8 +130,9 @@ Copy-Item .env.example .env
 python scripts/print_alloydb_proxy_command.py
 # Start the proxy in a separate terminal, then:
 
-# Seed the demo patient
-python scripts/seed_shreesha.py
+# Seed the demo patient and workspace data
+$env:PYTHONPATH="src"
+python -m cure_quest.scripts.seed
 
 # Setup vector storage (optional, for medical memory)
 python scripts/setup_alloydb_vector.py

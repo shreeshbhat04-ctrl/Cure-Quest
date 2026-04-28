@@ -8,7 +8,7 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { HITLScreen } from './screens/HITLScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AboutScreen } from './screens/AboutScreen';
-import { MarketplaceScreen } from './screens/MarketplaceScreen';
+
 import { Profile } from './screens/Profile';
 import { VoiceAssistant } from './components/VoiceAssistant';
 import { ChatAssistant } from './components/ChatAssistant';
@@ -27,6 +27,11 @@ export default function App() {
     localStorage.setItem('curequest_patient_id', String(patientId));
     setLoggedInPatientId(patientId);
   };
+  
+  const handleLogout = () => {
+    localStorage.removeItem('curequest_patient_id');
+    setLoggedInPatientId(null);
+  };
 
   if (loggedInPatientId === null) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -36,10 +41,18 @@ export default function App() {
     return <DoctorWorkspaceScreen patientId={loggedInPatientId} onRoleChange={() => setRole('patient')} />;
   }
 
-  return <AuthenticatedApp patientId={loggedInPatientId} onRoleChange={() => setRole('doctor')} />;
+  return <AuthenticatedApp patientId={loggedInPatientId} onRoleChange={() => setRole('doctor')} onLogout={handleLogout} />;
 }
 
-function AuthenticatedApp({ patientId: initialPatientId, onRoleChange }: { patientId: number, onRoleChange: () => void }) {
+function AuthenticatedApp({ 
+  patientId: initialPatientId, 
+  onRoleChange, 
+  onLogout 
+}: { 
+  patientId: number, 
+  onRoleChange: () => void, 
+  onLogout: () => void 
+}) {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const { workspace, loading, error, refresh, patientId } = useWorkspace(initialPatientId);
 
@@ -51,8 +64,7 @@ function AuthenticatedApp({ patientId: initialPatientId, onRoleChange }: { patie
         return <CareMazeScreen workspace={workspace} loading={loading} onRefresh={refresh} patientId={patientId} />;
       case 'medications':
         return <MedicationHubScreen workspace={workspace} loading={loading} onRefresh={refresh} patientId={patientId} />;
-      case 'marketplace':
-        return <MarketplaceScreen />;
+
       case 'hitl':
         return <HITLScreen workspace={workspace} loading={loading} onRefresh={refresh} patientId={patientId} />;
       case 'history':
@@ -74,6 +86,7 @@ function AuthenticatedApp({ patientId: initialPatientId, onRoleChange }: { patie
       onRefresh={refresh}
       loading={loading}
       onRoleChange={onRoleChange}
+      onLogout={onLogout}
     >
       <AnimatePresence mode="wait">
         <div key={activeTab} className="min-h-full min-w-0 w-full">

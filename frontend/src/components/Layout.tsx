@@ -4,7 +4,7 @@ import { Bell, Brain, Grid2X2, Map, Pill, History, Stethoscope, Info, User, Shop
 import logo from '../assets/logo.png';
 
 
-type TabId = 'dashboard' | 'care-maze' | 'medications' | 'marketplace' | 'hitl' | 'history' | 'profile' | 'about';
+type TabId = 'dashboard' | 'care-maze' | 'medications' | 'hitl' | 'history' | 'profile' | 'about';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +14,7 @@ interface LayoutProps {
   onRefresh: () => void;
   loading: boolean;
   onRoleChange?: () => void;
+  onLogout?: () => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -24,13 +25,14 @@ export const Layout: React.FC<LayoutProps> = ({
   onRefresh,
   loading,
   onRoleChange,
+  onLogout,
 }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const tabs: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }>; label: string }> = [
     { id: 'dashboard', icon: Grid2X2, label: 'Dashboard' },
     { id: 'care-maze', icon: Map, label: 'Care Maze' },
     { id: 'medications', icon: Pill, label: 'Meds' },
-    { id: 'marketplace', icon: ShoppingCart, label: 'Market' },
+
     { id: 'hitl', icon: Stethoscope, label: 'Doctors' },
     { id: 'history', icon: History, label: 'History' },
     { id: 'profile', icon: User, label: 'Profile' },
@@ -38,12 +40,12 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   const isDashboard = activeTab === 'dashboard';
-  const isMarketplace = activeTab === 'marketplace';
+
 
   return (
     <div className="cq-app-frame flex min-h-screen w-full flex-col app-background-image relative overflow-x-hidden">
       {/* Background Overlay */}
-      <div className={`absolute inset-0 transition-colors duration-500 z-0 ${(isDashboard || isMarketplace) ? 'overlay-bright' : 'overlay-dim'}`} />
+      <div className={`absolute inset-0 transition-colors duration-500 z-0 ${isDashboard ? 'overlay-bright' : 'overlay-dim'}`} />
 
       <div className="cq-app-inner relative z-10 grid min-h-screen w-full grid-rows-[auto_minmax(0,1fr)] px-6 pb-28 pt-6 md:px-8 md:pb-10 lg:px-10 2xl:px-12">
         <header className="glass relative z-50 mb-6 flex min-w-0 items-center justify-between rounded-[2rem] p-6 shadow-[0_12px_32px_-4px_rgba(27,28,21,0.06)]">
@@ -122,7 +124,10 @@ export const Layout: React.FC<LayoutProps> = ({
                       Switch to Provider Portal
                     </button>
                   )}
-                  <button className="w-full py-2 text-sm text-left text-terracotta hover:text-terracotta/80 transition-colors">
+                  <button 
+                    onClick={onLogout}
+                    className="w-full py-2 text-sm text-left text-terracotta hover:text-terracotta/80 transition-colors"
+                  >
                     Sign Out
                   </button>
                 </div>

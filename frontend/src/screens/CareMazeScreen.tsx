@@ -662,14 +662,20 @@ export function CareMazeScreen({
                 <Waves className="h-5 w-5" />
                 <h3 className="font-serif text-2xl">Associated diet support</h3>
               </div>
-              <p className="mt-3 text-sm leading-7 text-on-surface/65">{supportResult.diet_plan.plan_summary}</p>
-              <div className="mt-5 space-y-3">
-                {supportResult.diet_plan.meal_rules.map((rule) => (
-                  <div key={rule} className="rounded-[1.4rem] bg-surface-container-low px-4 py-3 text-sm leading-7 text-on-surface/70">
-                    {rule}
+              {supportResult.diet_plan ? (
+                <>
+                  <p className="mt-3 text-sm leading-7 text-on-surface/65">{supportResult.diet_plan.plan_summary}</p>
+                  <div className="mt-5 space-y-3">
+                    {supportResult.diet_plan.meal_rules?.map((rule) => (
+                      <div key={rule} className="rounded-[1.4rem] bg-surface-container-low px-4 py-3 text-sm leading-7 text-on-surface/70">
+                        {rule}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="mt-3 text-sm leading-7 text-on-surface/65">No specific dietary guidance linked with this medication route.</p>
+              )}
             </SoftCard>
           ) : null}
         </div>

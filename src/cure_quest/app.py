@@ -13,6 +13,11 @@ from cure_quest.db.bootstrap import init_database
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    import os
+    settings = get_settings()
+    if settings.google_api_key and "GEMINI_API_KEY" not in os.environ:
+        os.environ["GEMINI_API_KEY"] = settings.google_api_key
+
     init_database()
     yield
 

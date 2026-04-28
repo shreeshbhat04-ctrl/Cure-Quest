@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2,
   ChefHat,
@@ -10,6 +10,7 @@ import {
   Loader2,
   Microscope,
   PillBottle,
+  Play,
   ShieldAlert,
   Sparkles,
   Upload,
@@ -42,6 +43,7 @@ import {
 } from '../lib/api';
 import { EmptyState, LoadingState } from '../components/States';
 import { Pill, SectionShell, SoftCard } from '../components/ui';
+import { MarketplaceScreen } from './MarketplaceScreen';
 
 type RecipeViewState =
   | { status: 'idle' }
@@ -241,6 +243,7 @@ export function MedicationHubScreen({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadActionBusy, setUploadActionBusy] = useState<'followup' | 'handoff' | 'doctor-chat' | null>(null);
+  const [showMarketplace, setShowMarketplace] = useState(false);
 
   const prescriptions = workspace?.prescriptions ?? [];
   const latestPrescription =
@@ -781,12 +784,7 @@ export function MedicationHubScreen({
           ) : (
             <EmptyState title="No grounded answer yet" description="Use the 'Fetch medication label' button above to look up a medication's safety information." />
           )}
-          <div className="mt-5 rounded-[1.5rem] bg-surface-container-low px-5 py-4">
-            <p className="text-sm uppercase tracking-[0.18em] text-tertiary/70">Trigger memory</p>
-            <p className="mt-2 text-sm leading-7 text-on-surface/60">
-              {triggerManifest.medical_image_upload || 'Medical images should route through MedSigLIP first, then MedGemma.'}
-            </p>
-          </div>
+
         </SoftCard>
       </div>
 
@@ -802,8 +800,8 @@ export function MedicationHubScreen({
         >
           <div className="flex flex-wrap gap-2">
             <Pill>{medicationName || 'Medication-aware'}</Pill>
-            {patientConditions.map((condition) => (
-              <Pill key={condition} tone="sand">{condition}</Pill>
+            {patientConditions.map((condition, idx) => (
+              <Pill key={`cond-${idx}`} tone="sand">{condition}</Pill>
             ))}
           </div>
         </SectionShell>
@@ -824,17 +822,25 @@ export function MedicationHubScreen({
                     <div className="rounded-[1.5rem] bg-secondary-container/30 px-5 py-4 text-sm leading-7 text-secondary">{dietSupportError}</div>
                   ) : dietSupport ? (
                     <div className="space-y-4">
-                      <div className="rounded-[1.5rem] bg-surface/80 px-5 py-5">
-                        <p className="text-sm uppercase tracking-[0.18em] text-primary/70">Summary</p>
-                        <p className="mt-3 text-sm leading-7 text-on-surface/68">{dietSupport.diet_plan.plan_summary}</p>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {dietSupport.diet_plan.meal_rules.map((rule) => (
-                          <div key={rule} className="rounded-[1.4rem] bg-surface/80 px-4 py-4 text-sm leading-7 text-on-surface/68">
-                            {rule}
+                      {dietSupport.diet_plan ? (
+                        <>
+                          <div className="rounded-[1.5rem] bg-surface/80 px-5 py-5">
+                            <p className="text-sm uppercase tracking-[0.18em] text-primary/70">Summary</p>
+                            <p className="mt-3 text-sm leading-7 text-on-surface/68">{dietSupport.diet_plan?.plan_summary}</p>
                           </div>
-                        ))}
-                      </div>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            {dietSupport.diet_plan?.meal_rules?.map((rule, idx) => (
+                              <div key={`rule-${idx}`} className="rounded-[1.4rem] bg-surface/80 px-4 py-4 text-sm leading-7 text-on-surface/68">
+                                {rule}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="rounded-[1.5rem] bg-surface/80 px-5 py-5 text-sm text-on-surface/55">
+                          No dietary plan guidance available right now.
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -901,7 +907,16 @@ export function MedicationHubScreen({
                 </label>
 
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-on-surface/60">Available ingredients</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-on-surface/60">Available ingredients</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowMarketplace(true)}
+                      className="text-xs font-bold text-primary hover:text-primary/80 uppercase tracking-wider"
+                    >
+                      + Browse food
+                    </button>
+                  </div>
                   <input
                     value={generatorValues.availableIngredients}
                     onChange={(e) => setGeneratorValues((current) => ({ ...current, availableIngredients: e.target.value }))}
@@ -1101,6 +1116,44 @@ export function MedicationHubScreen({
                     </div>
                   </div>
 
+                  {(() => {
+                    if (!tutorials?.youtube_url) return null;
+                    const match = tutorials.youtube_url.match(/[?&]v=([^&]+)/);
+                    const videoId = match ? match[1] : null;
+
+                    if (videoId) {
+                      return (
+                        <div className="aspect-video w-full overflow-hidden rounded-[1.55rem] bg-surface-container-highest shadow-inner">
+                          <iframe
+                            width="100%"
+                            height="100%"
+                            src={`https://www.youtube.com/embed/${videoId}`}
+                            title="YouTube tutorial"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      );
+                    }
+
+                    return (
+                    <a
+                      href={tutorials.youtube_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex w-full items-center justify-between rounded-[1.55rem] bg-[#FF0000]/10 px-5 py-4 text-[#FF0000] hover:bg-[#FF0000]/15 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Play className="h-5 w-5 fill-current" />
+                        <span className="text-sm font-bold tracking-wide">Watch YouTube Tutorial</span>
+                      </div>
+                      <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">Opens in new tab</span>
+                    </a>
+                    );
+                  })()}
+
                   <div className="rounded-[1.55rem] bg-primary-fixed/22 px-5 py-4">
                     <p className="text-sm uppercase tracking-[0.18em] text-primary/70">Why this recipe</p>
                     <p className="mt-2 text-sm leading-7 text-on-surface/68">{selectedRecipe.why_it_fits}</p>
@@ -1157,9 +1210,9 @@ export function MedicationHubScreen({
                   <div className="space-y-3">
                     <p className="text-sm uppercase tracking-[0.18em] text-secondary/70">Safety notes</p>
                     <div className="space-y-3">
-                      {selectedRecipe.safety_notes.map((note) => (
+                      {selectedRecipe.safety_notes.map((note, idx) => (
                         <div
-                          key={`${note.message}-${note.related_to ?? 'general'}`}
+                          key={`note-${idx}`}
                           className={`rounded-[1.35rem] px-4 py-3 text-sm leading-7 ${
                             note.severity === 'caution'
                               ? 'bg-secondary-container/28 text-secondary'
@@ -1176,16 +1229,16 @@ export function MedicationHubScreen({
                     <div className="rounded-[1.35rem] bg-surface px-4 py-4">
                       <p className="text-sm uppercase tracking-[0.18em] text-primary/70">Condition fit</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {selectedRecipe.condition_fit.map((item) => (
-                          <Pill key={item}>{item}</Pill>
+                        {selectedRecipe.condition_fit.map((item, idx) => (
+                          <Pill key={`cfit-${idx}`}>{item}</Pill>
                         ))}
                       </div>
                     </div>
                     <div className="rounded-[1.35rem] bg-surface px-4 py-4">
                       <p className="text-sm uppercase tracking-[0.18em] text-primary/70">Medication fit</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {selectedRecipe.medication_fit.map((item) => (
-                          <Pill key={item} tone="sand">{item}</Pill>
+                        {selectedRecipe.medication_fit.map((item, idx) => (
+                          <Pill key={`mfit-${idx}`} tone="sand">{item}</Pill>
                         ))}
                       </div>
                     </div>
@@ -1198,6 +1251,32 @@ export function MedicationHubScreen({
           </div>
         </div>
       </section>
+
+      {/* Marketplace Modal */}
+      <AnimatePresence>
+        {showMarketplace && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed inset-0 z-[100] overflow-y-auto bg-surface/95 backdrop-blur-md px-6 py-12"
+          >
+            <div className="mx-auto max-w-7xl">
+              <MarketplaceScreen 
+                onClose={() => setShowMarketplace(false)} 
+                onAddIngredient={(name) => {
+                  setGeneratorValues(prev => {
+                    const current = prev.availableIngredients.trim();
+                    if (!current) return { ...prev, availableIngredients: name };
+                    if (current.toLowerCase().includes(name)) return prev;
+                    return { ...prev, availableIngredients: `${current}, ${name}` };
+                  });
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   );

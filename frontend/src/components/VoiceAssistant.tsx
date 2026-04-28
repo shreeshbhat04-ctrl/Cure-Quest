@@ -80,7 +80,7 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ patientId }) => 
     isPlayingRef.current = true;
     const nextChunk = audioQueueRef.current.shift();
     if (nextChunk) {
-      const audio = new Audio(`data:audio/mp3;base64,${nextChunk}`);
+      const audio = new Audio(`data:audio/wav;base64,${nextChunk}`);
       audio.onended = () => {
         playNextInQueue();
       };
