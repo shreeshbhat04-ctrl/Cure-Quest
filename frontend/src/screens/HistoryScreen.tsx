@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { FileHeart, MessageSquareHeart, Orbit, Ticket } from 'lucide-react';
+import { ChevronDown, FileHeart, MessageSquareHeart, Orbit, ShieldPlus, Ticket } from 'lucide-react';
 import type { WorkspacePayload } from '../lib/api';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { Pill, SectionShell, SoftCard } from '../components/ui';
@@ -21,11 +22,23 @@ export function HistoryScreen({
   loading: boolean;
   error: string | null;
 }) {
+  const [expandedSnapshotId, setExpandedSnapshotId] = useState<string | null>(null);
   if (loading && !workspace) return <LoadingState />;
   if (error && !workspace) return <ErrorState message={error} />;
   if (!workspace) return <EmptyState title="No history loaded" description="Once your workspace is available, this timeline will gather cases, prescriptions, messages, and stored memories." />;
 
   const timeline = [
+    ...workspace.condition_snapshots.map((item) => ({
+      id: `snapshot-${item.id}`,
+      kind: 'Condition Snapshot',
+      tone: 'sand' as const,
+      title: item.snapshot_type.replaceAll('_', ' '),
+      summary: item.summary,
+      timestamp: item.created_at,
+      link: null,
+      icon: ShieldPlus,
+      snapshot: item,
+    })),
     ...workspace.cases.map((item) => ({
       id: `case-${item.id}`,
       kind: 'Doctor Case',
@@ -65,6 +78,7 @@ export function HistoryScreen({
       timestamp: item.created_at,
       link: item.drive_file_url,
       icon: Orbit,
+      snapshot: null,
     })),
   ].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
 
@@ -116,6 +130,59 @@ export function HistoryScreen({
                     ) : null}
                   </div>
                   <p className="mt-4 text-sm leading-7 text-on-surface/65">{item.summary}</p>
+                  {'snapshot' in item && item.snapshot ? (() => {
+                    const snap: any = item.snapshot;
+                    return (
+                      <div className="mt-5">
+                        <button
+                          type="button"
+                          aria-expanded={expandedSnapshotId === item.id}
+                          onClick={() => setExpandedSnapshotId((current) => (current === item.id ? null : item.id))}
+                          className="flex items-center gap-2 text-sm text-primary hover:underline"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${expandedSnapshotId === item.id ? 'rotate-180' : ''}`} />
+                          <span>{expandedSnapshotId === item.id ? 'Hide snapshot details' : 'Show snapshot details'}</span>
+                        </button>
+                        {expandedSnapshotId === item.id ? (
+                          <div className="mt-4 grid gap-4 rounded-[1.25rem] bg-surface-container-lowest/35 p-5">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Profile</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.profile?.full_name ? String(snap.profile.full_name) : 'Profile context saved.'}
+                                {snap.profile?.summary ? ` • ${String(snap.profile.summary)}` : ''}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Conditions</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.conditions?.length
+                                  ? snap.conditions.map((entry: any) => String(entry.name ?? entry.condition_type ?? 'Condition')).join(', ')
+                                  : 'No condition records stored in this snapshot.'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Prescriptions</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.prescriptions?.length
+                                  ? snap.prescriptions.map((entry: any) => String(entry.medication_name ?? 'Prescription')).join(', ')
+                                  : 'No prescription records stored in this snapshot.'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Vitals</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.vitals?.length
+                                  ? snap.vitals
+                                      .map((entry: any) => String(entry.blood_pressure ?? entry.weight_kg ?? entry.heart_rate_bpm ?? 'Vital'))
+                                      .join(', ')
+                                  : 'No vitals captured with this snapshot.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })() : null}
                 </SoftCard>
               </motion.div>
             </div>

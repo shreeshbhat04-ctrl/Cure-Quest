@@ -13,6 +13,12 @@ import {
   patient4Image,
   type DoctorProfile,
   type DoctorTask,
+  fetchChatThreads,
+  fetchChatMessages,
+  sendChatMessage,
+  createChatThread,
+  type ChatThreadItem,
+  type ChatMessageItem,
 } from '../lib/api';
 
 
@@ -26,6 +32,12 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
   const [tasksError, setTasksError] = useState<string | null>(null);
 
   const [activePatientChatId, setActivePatientChatId] = useState(1);
+  const [chatThreads, setChatThreads] = useState<ChatThreadItem[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const chatPatients = [
     { id: 1, name: 'Shreesha', condition: 'Eczema, Early stage diabetes', initial: 'S', lastMessage: 'Can you help?', image: patient2Image },
     { id: 2, name: 'Alex M.', condition: 'Hypertension', initial: 'A', lastMessage: 'Thanks, Dr!', image: patient1Image },
@@ -84,6 +96,99 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
       active = false;
     };
   }, [selectedDoctorId]);
+
+  // Load chat threads for this doctor
+  useEffect(() => {
+    if (!selectedDoctorId) return;
+    let active = true;
+
+    setActiveThreadId(null);
+    setChatMessages([]);
+
+    const loadThreads = async () => {
+      try {
+        setChatLoading(true);
+        const result = await fetchChatThreads({ doctor_id: selectedDoctorId });
+        if (!active) return;
+        setChatThreads(result.threads);
+        if (result.threads.length > 0) {
+          setActiveThreadId(result.threads[0].id);
+        } else {
+          setActiveThreadId(null);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (active) setChatLoading(false);
+      }
+    };
+    void loadThreads();
+    return () => { active = false; };
+  }, [selectedDoctorId]);
+
+  // Load messages while the chat tab is visible.
+  useEffect(() => {
+    if (activeTab !== 'chat' || !activeThreadId) return;
+
+    let active = true;
+    let inFlight = false;
+
+    const loadMessages = async () => {
+      if (inFlight) return;
+
+      inFlight = true;
+      try {
+        const result = await fetchChatMessages(activeThreadId);
+        if (!active) return;
+        setChatMessages(result.messages);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void loadMessages();
+    const interval = setInterval(loadMessages, 15000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activeTab, activeThreadId]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !activeThreadId || !selectedDoctor || isSending) return;
+    const optimisticMessage = chatInput.trim();
+    setIsSending(true);
+    setChatInput('');
+    try {
+      const msg = await sendChatMessage(
+        activeThreadId,
+        'doctor',
+        selectedDoctor.full_name,
+        optimisticMessage
+      );
+      setChatMessages(prev => [...prev, msg]);
+    } catch (err) {
+      console.error(err);
+      setChatInput(optimisticMessage); // revert on error
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleNewThread = async () => {
+    if (!selectedDoctorId) return;
+    try {
+      const thread = await createChatThread(patientId, selectedDoctorId, 'New consultation');
+      setChatThreads(prev => [thread, ...prev]);
+      setActiveThreadId(thread.id);
+      setChatMessages([]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="flex h-screen w-full bg-surface text-on-surface overflow-hidden">
@@ -234,71 +339,97 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
 
             {activeTab === 'chat' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="h-full flex gap-6 max-w-5xl">
-                {/* Patient List Sidebar */}
+                {/* Thread List Sidebar */}
                 <SoftCard className="w-72 flex flex-col bg-surface-container-lowest border border-outline-variant/30 h-[calc(100vh-12rem)] overflow-hidden shrink-0">
-                  <div className="border-b border-outline-variant/30 pb-4 mb-2 shrink-0">
-                    <h3 className="font-serif text-lg">Active Chats</h3>
+                  <div className="border-b border-outline-variant/30 pb-4 mb-2 shrink-0 flex items-center justify-between">
+                    <h3 className="font-serif text-lg">Chat Threads</h3>
+                    <button onClick={handleNewThread} className="text-xs text-primary hover:text-primary/80 font-medium">+ New</button>
                   </div>
                   <div className="flex-1 overflow-y-auto -mx-2 px-2 space-y-1">
-                    {chatPatients.map(p => (
-                      <button 
-                        key={p.id}
-                        onClick={() => setActivePatientChatId(p.id)}
-                        className={`w-full text-left p-3 rounded-xl transition-colors ${activePatientChatId === p.id ? 'bg-primary-container text-on-primary-container' : 'hover:bg-surface-container-low'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`h-10 w-10 rounded-full shrink-0 flex items-center justify-center overflow-hidden border border-outline-variant/10 shadow-sm ${activePatientChatId === p.id ? 'bg-surface' : 'bg-primary-container'}`}>
-                            <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
-                          </div>
+                    {chatLoading ? (
+                      <p className="text-sm text-on-surface/50 text-center py-4">Loading...</p>
+                    ) : chatThreads.length === 0 ? (
+                      <p className="text-sm text-on-surface/50 text-center py-4">No chat threads yet.</p>
+                    ) : (
+                      chatThreads.map(thread => (
+                        <button
+                          key={thread.id}
+                          onClick={() => setActiveThreadId(thread.id)}
+                          className={`w-full text-left p-3 rounded-xl transition-colors ${activeThreadId === thread.id ? 'bg-primary-container text-on-primary-container' : 'hover:bg-surface-container-low'}`}
+                        >
                           <div className="min-w-0">
-                            <h4 className="font-medium text-sm truncate">{p.name}</h4>
-                            <p className="text-xs opacity-70 truncate">{p.lastMessage}</p>
+                            <h4 className="font-medium text-sm truncate">{thread.subject}</h4>
+                            <p className="text-xs opacity-70 truncate">
+                              {thread.last_message ? thread.last_message.body : 'No messages yet'}
+                            </p>
+                            <p className="text-xs opacity-40 mt-0.5">
+                              {thread.message_count} message{thread.message_count !== 1 ? 's' : ''}
+                            </p>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      ))
+                    )}
                   </div>
                 </SoftCard>
 
                 {/* Active Chat Area */}
                 <SoftCard className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant/30 h-[calc(100vh-12rem)]">
-                  <div className="border-b border-outline-variant/30 pb-4 mb-4 shrink-0">
-                    <h3 className="font-serif text-lg">Chatting with {activePatient.name}</h3>
-                    <p className="text-sm text-on-surface/60">Condition: {activePatient.condition}</p>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                    {activePatientChatId === 1 ? (
-                      <>
-                        <div className="flex gap-4">
-                          <div className="h-10 w-10 rounded-full shrink-0 overflow-hidden border border-outline-variant/10 shadow-sm">
-                            <img src={patient2Image} alt="Shreesha" className="h-full w-full object-cover" />
-                          </div>
-                          <div className="bg-surface-container-low p-4 rounded-2xl rounded-tl-none">
-                            <p className="text-sm leading-relaxed">Hi Doctor, the AI suggested I review some Metformin alternatives due to stomach issues. Can you help?</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-4 flex-row-reverse">
-                          <div className="h-10 w-10 rounded-full shrink-0 overflow-hidden border border-primary/20 shadow-sm">
-                            <img src={surgeonImage} alt="Dr. Specialist" className="h-full w-full object-cover" />
-                          </div>
-                          <div className="bg-primary-fixed/30 p-4 rounded-2xl rounded-tr-none">
-                            <p className="text-sm leading-relaxed">Yes, I've seen the escalation task. We can switch you to an extended-release version which should be gentler.</p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-on-surface/50 text-sm">
-                        No previous messages today.
+                  {activeThreadId ? (
+                    <>
+                      <div className="border-b border-outline-variant/30 pb-4 mb-4 shrink-0">
+                        <h3 className="font-serif text-lg">
+                          {chatThreads.find(t => t.id === activeThreadId)?.subject || 'Conversation'}
+                        </h3>
+                        <p className="text-sm text-on-surface/60">
+                          Patient #{chatThreads.find(t => t.id === activeThreadId)?.patient_id} &middot; Thread #{activeThreadId}
+                        </p>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="mt-4 pt-4 border-t border-outline-variant/30 flex gap-3 shrink-0">
-                    <input type="text" placeholder={`Message ${activePatient.name}...`} className="input-shell flex-1 bg-surface" />
-                    <button className="river-stone-btn bg-primary text-surface px-6 font-medium">Send</button>
-                  </div>
+                      <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                        {chatMessages.length === 0 ? (
+                          <div className="flex items-center justify-center h-full text-on-surface/50 text-sm">
+                            No messages in this thread yet. Start the conversation!
+                          </div>
+                        ) : (
+                          chatMessages.map(msg => (
+                            <div key={msg.id} className={`flex gap-4 ${msg.sender_role === 'doctor' ? 'flex-row-reverse' : ''}`}>
+                              <div className={`h-10 w-10 rounded-full shrink-0 flex items-center justify-center text-sm font-medium shadow-sm ${msg.sender_role === 'doctor' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-low text-on-surface/70'}`}>
+                                {msg.sender_display_name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className={`max-w-[70%] p-4 rounded-2xl ${msg.sender_role === 'doctor' ? 'bg-primary-fixed/30 rounded-tr-none' : 'bg-surface-container-low rounded-tl-none'}`}>
+                                <p className="text-xs font-medium opacity-60 mb-1">{msg.sender_display_name}</p>
+                                <p className="text-sm leading-relaxed">{msg.body}</p>
+                                <p className="text-xs opacity-40 mt-1">{new Date(msg.created_at).toLocaleTimeString()}</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-outline-variant/30 flex gap-3 shrink-0">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !isSending) handleSendMessage(); }}
+                          placeholder="Type a message..."
+                          className="input-shell flex-1 bg-surface"
+                          disabled={isSending}
+                        />
+                        <button 
+                          onClick={handleSendMessage} 
+                          disabled={isSending}
+                          className="river-stone-btn bg-primary text-surface px-6 font-medium disabled:opacity-50"
+                        >
+                          {isSending ? 'Sending...' : 'Send'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-on-surface/50 text-sm">
+                      Select a thread or create a new one to start chatting.
+                    </div>
+                  )}
                 </SoftCard>
               </motion.div>
             )}

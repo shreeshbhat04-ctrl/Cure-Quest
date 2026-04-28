@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
@@ -9,6 +11,12 @@ from cure_quest.api.models import (
     ActionConfirmResponse,
     ActionDraftRequest,
     ActionDraftResponse,
+    AsanaWorkspaceUserResponse,
+    CareDestinationResponse,
+    CareDestinationSearchRequest,
+    CareDestinationSearchResponse,
+    CareMapRouteRequest,
+    CareMapRouteResponse,
     CaseResponse,
     CalendarEventRequest,
     CalendarEventResponse,
@@ -23,12 +31,12 @@ from cure_quest.api.models import (
     DoctorResponse,
     DocumentFlowRequest,
     DocumentFlowResponse,
+    DrugLabelRequest,
+    DrugLabelResponse,
     DocumentPipelineRequest,
     DocumentPipelineResponse,
     DriveUploadRequest,
     DriveUploadResponse,
-    DrugLabelRequest,
-    DrugLabelResponse,
     EscalateRequest,
     EscalateResponse,
     GenerateDietRecipesRequest,
@@ -41,6 +49,16 @@ from cure_quest.api.models import (
     MedicalMemorySearchResponse,
     MedicalMemoryStoreRequest,
     MedicalMemoryStoreResponse,
+    MedicineGroundedAnswerRequest,
+    ChatThreadCreateRequest,
+    ChatMessageCreateRequest,
+    ChatThreadResponse,
+    ChatThreadListResponse,
+    ChatMessageResponse,
+    ChatMessageListResponse,
+    MedicineGroundedAnswerResponse,
+    DietRecipeTutorialResponse,
+    MarketIngredientResponse,
     MedGemmaRequest,
     MedGemmaResponse,
     MedSigLIPClassificationRequest,
@@ -52,6 +70,13 @@ from cure_quest.api.models import (
     PatientIntakeRequest,
     PatientIntakeResponse,
     PatientDoctorMapRequest,
+    PatientProfileResponse,
+    PatientProfileUpdateRequest,
+    PatientConditionSnapshotCreateRequest,
+    PatientConditionSnapshotResponse,
+    PatientHistoryQueryRequest,
+    PatientVitalCreateRequest,
+    PatientVitalResponse,
     PharmacySearchRequest,
     PharmacySearchResponse,
     PrescriptionAnalysisResponse,
@@ -63,13 +88,193 @@ from cure_quest.api.models import (
     ScaleDietRecipeRequest,
     ScaleDietRecipeResponse,
     SymptomAnalysisResponse,
+    VisionSuggestedAction,
+    VisionUploadAnalyzeResponse,
 )
+from cure_quest.adapters.ticketing import build_ticketing_adapter
 from cure_quest.db.models import EscalationCase
-from cure_quest.db.models import ChronicCondition, Doctor, MedicalMemory, Notification, Patient, PatientDoctorMap, PendingAction, Prescription
+from cure_quest.db.models import (
+    ChronicCondition,
+    Doctor,
+    MedicalMemory,
+    Notification,
+    Patient,
+    PatientConditionSnapshot,
+    PatientDoctorMap,
+    PatientProfileDetail,
+    PatientVital,
+    PendingAction,
+    Prescription,
+)
 from cure_quest.db.session import get_db
 
 router = APIRouter()
 orchestrator = Orchestrator()
+
+
+def _safe_json_load(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    except json.JSONDecodeError:
+        return []
+    return []
+
+
+def _profile_response(patient: Patient, detail: PatientProfileDetail | None) -> PatientProfileResponse:
+    return PatientProfileResponse(
+        patient_id=patient.id,
+        full_name=patient.full_name,
+        preferred_language=patient.preferred_language,
+        date_of_birth=None if patient.date_of_birth is None else patient.date_of_birth.isoformat(),
+        summary=patient.summary,
+        height_cm=None if detail is None else detail.height_cm,
+        weight_kg=None if detail is None else detail.weight_kg,
+        blood_group=None if detail is None else detail.blood_group,
+        allergies=[] if detail is None else _safe_json_load(detail.allergies_json),
+        emergency_contact_name=None if detail is None else detail.emergency_contact_name,
+        emergency_contact_phone=None if detail is None else detail.emergency_contact_phone,
+        primary_language=None if detail is None else detail.primary_language,
+        notes=None if detail is None else detail.notes,
+        updated_at=None if detail is None or detail.updated_at is None else detail.updated_at.isoformat(),
+    )
+
+
+def _vital_response(vital: PatientVital) -> PatientVitalResponse:
+    return PatientVitalResponse(
+        id=vital.id,
+        patient_id=vital.patient_id,
+        blood_pressure=vital.blood_pressure,
+        heart_rate_bpm=vital.heart_rate_bpm,
+        blood_glucose_mg_dl=vital.blood_glucose_mg_dl,
+        temperature_c=vital.temperature_c,
+        weight_kg=vital.weight_kg,
+        source=vital.source,
+        recorded_at=vital.recorded_at.isoformat(),
+    )
+
+
+def _snapshot_response(snapshot: PatientConditionSnapshot) -> PatientConditionSnapshotResponse:
+    def load_dict(raw: str | None) -> dict | None:
+        if not raw:
+            return None
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    def load_list(raw: str | None) -> list[dict]:
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [item for item in parsed if isinstance(item, dict)]
+        except json.JSONDecodeError:
+            return []
+        return []
+
+    return PatientConditionSnapshotResponse(
+        id=snapshot.id,
+        patient_id=snapshot.patient_id,
+        snapshot_type=snapshot.snapshot_type,
+        summary=snapshot.summary,
+        profile=load_dict(snapshot.profile_json),
+        conditions=load_list(snapshot.conditions_json),
+        prescriptions=load_list(snapshot.prescriptions_json),
+        vitals=load_list(snapshot.vitals_json),
+        source_event_type=snapshot.source_event_type,
+        source_event_id=snapshot.source_event_id,
+        created_at=snapshot.created_at.isoformat(),
+    )
+
+
+def _create_profile_snapshot(
+    db: Session,
+    patient: Patient,
+    detail: PatientProfileDetail | None,
+    source_event_type: str,
+    source_event_id: str | None = None,
+    snapshot_type: str | None = None,
+    summary: str | None = None,
+) -> PatientConditionSnapshot:
+    conditions = db.scalars(
+        select(ChronicCondition).where(ChronicCondition.patient_id == patient.id).order_by(ChronicCondition.id.desc())
+    ).all()
+    prescriptions = db.scalars(
+        select(Prescription).where(Prescription.patient_id == patient.id).order_by(Prescription.created_at.desc())
+    ).all()
+    latest_vitals = db.scalars(
+        select(PatientVital).where(PatientVital.patient_id == patient.id).order_by(PatientVital.recorded_at.desc())
+    ).all()[:5]
+
+    profile_payload = _profile_response(patient, detail).model_dump()
+    snapshot = PatientConditionSnapshot(
+        patient_id=patient.id,
+        snapshot_type=snapshot_type or source_event_type,
+        summary=summary or f"Profile snapshot captured for {patient.full_name}.",
+        profile_json=json.dumps(profile_payload, ensure_ascii=True),
+        conditions_json=json.dumps(
+            [
+                {
+                    "id": item.id,
+                    "name": item.name,
+                    "condition_type": item.condition_type,
+                    "last_updated": None if item.last_updated is None else item.last_updated.isoformat(),
+                    "notes": item.notes,
+                }
+                for item in conditions
+            ],
+            ensure_ascii=True,
+        ),
+        prescriptions_json=json.dumps(
+            [
+                {
+                    "id": item.id,
+                    "medication_name": item.medication_name,
+                    "dosage": item.dosage,
+                    "instructions": item.instructions,
+                    "review_status": item.review_status,
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in prescriptions
+            ],
+            ensure_ascii=True,
+        ),
+        vitals_json=json.dumps([_vital_response(item).model_dump() for item in latest_vitals], ensure_ascii=True),
+        source_event_type=source_event_type,
+        source_event_id=source_event_id,
+    )
+    db.add(snapshot)
+    db.commit()
+    db.refresh(snapshot)
+    return snapshot
+
+
+def _create_manual_snapshot(
+    db: Session,
+    patient_id: int,
+    payload: PatientConditionSnapshotCreateRequest,
+) -> PatientConditionSnapshot:
+    snapshot = PatientConditionSnapshot(
+        patient_id=patient_id,
+        snapshot_type=payload.snapshot_type,
+        summary=payload.summary,
+        profile_json=None if payload.profile is None else json.dumps(payload.profile, ensure_ascii=True),
+        conditions_json=json.dumps(payload.conditions, ensure_ascii=True),
+        prescriptions_json=json.dumps(payload.prescriptions, ensure_ascii=True),
+        vitals_json=json.dumps(payload.vitals, ensure_ascii=True),
+        source_event_type=payload.source_event_type,
+        source_event_id=payload.source_event_id,
+    )
+    db.add(snapshot)
+    db.commit()
+    db.refresh(snapshot)
+    return snapshot
 
 
 def _doctor_response(doctor: Doctor, mapping: PatientDoctorMap | None = None) -> DoctorResponse:
@@ -245,27 +450,55 @@ def list_gmail_health_emails(patient_id: int, db: Session = Depends(get_db)):
 @router.post("/gmail/send-care-summary")
 def send_gmail_care_summary(
     patient_id: int = Form(...),
-    to_email: str = Form(...),
-    subject: str = Form(...),
-    body_html: str = Form(...),
+    to_email: str | None = Form(None),
+    doctor_id: int | None = Form(None),
+    subject: str | None = Form(None),
+    body_html: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
-    if not patient or not patient.google_access_token:
-        raise HTTPException(status_code=400, detail="Gmail not connected for this patient.")
+    if not to_email and doctor_id is None:
+        raise HTTPException(status_code=400, detail="Provide either to_email or doctor_id.")
 
-    from cure_quest.services.google_workspace import credentials_from_tokens
-    creds = credentials_from_tokens(
-        access_token=patient.google_access_token,
-        refresh_token=patient.google_refresh_token,
-    )
-    result = orchestrator.integrations.send_care_email(
-        to=to_email,
-        subject=subject,
-        body_html=body_html,
-        credentials=creds,
-    )
+    try:
+        result = orchestrator.send_doctor_aware_care_email(
+            db=db,
+            patient_id=patient_id,
+            message="Care summary requested from Gmail route.",
+            doctor_id=doctor_id,
+            to_email=to_email,
+            subject=subject,
+            body_html=body_html,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    if not result.get("sent"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("error") or "Failed to send care summary email via Gmail."
+        )
+
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    if patient is not None:
+        _create_profile_snapshot(
+            db=db,
+            patient=patient,
+            detail=detail,
+            source_event_type="email_sent",
+            source_event_id=None if result.get("message_id") is None else str(result["message_id"]),
+        )
     return {"patient_id": patient_id, **result}
+
+
+@router.get("/integrations/asana/users", response_model=list[AsanaWorkspaceUserResponse])
+def list_asana_workspace_users(workspace_gid: str | None = None) -> list[AsanaWorkspaceUserResponse]:
+    adapter = build_ticketing_adapter()
+    try:
+        users = adapter.list_workspace_users(workspace_gid=workspace_gid)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return [AsanaWorkspaceUserResponse(**user) for user in users]
 
 
 
@@ -274,6 +507,15 @@ def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
     patient = db.scalar(select(Patient).where(Patient.id == patient_id))
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
+    profile_detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    vitals = db.scalars(
+        select(PatientVital).where(PatientVital.patient_id == patient_id).order_by(PatientVital.recorded_at.desc())
+    ).all()
+    snapshots = db.scalars(
+        select(PatientConditionSnapshot)
+        .where(PatientConditionSnapshot.patient_id == patient_id)
+        .order_by(PatientConditionSnapshot.created_at.desc())
+    ).all()
 
     conditions = db.scalars(
         select(ChronicCondition).where(ChronicCondition.patient_id == patient_id).order_by(ChronicCondition.id.desc())
@@ -308,6 +550,9 @@ def patient_workspace(patient_id: int, db: Session = Depends(get_db)) -> dict:
             "summary": patient.summary,
             "date_of_birth": None if patient.date_of_birth is None else patient.date_of_birth.isoformat(),
         },
+        "profile": _profile_response(patient, profile_detail).model_dump(),
+        "vitals": [_vital_response(item).model_dump() for item in vitals[:10]],
+        "condition_snapshots": [_snapshot_response(item).model_dump() for item in snapshots[:12]],
         "conditions": [
             {
                 "id": item.id,
@@ -396,6 +641,236 @@ def list_doctors(patient_id: int | None = None, db: Session = Depends(get_db)) -
         .order_by(PatientDoctorMap.is_default.desc(), Doctor.full_name)
     ).all()
     return [_doctor_response(doctor, mapping) for doctor, mapping in rows]
+
+
+@router.get("/patients/{patient_id}/profile", response_model=PatientProfileResponse)
+def get_patient_profile(patient_id: int, db: Session = Depends(get_db)) -> PatientProfileResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    return _profile_response(patient, detail)
+
+
+@router.post("/patients/{patient_id}/condition-snapshots", response_model=PatientConditionSnapshotResponse)
+def create_patient_condition_snapshot(
+    patient_id: int,
+    payload: PatientConditionSnapshotCreateRequest,
+    db: Session = Depends(get_db),
+) -> PatientConditionSnapshotResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    snapshot = _create_manual_snapshot(db=db, patient_id=patient_id, payload=payload)
+    return _snapshot_response(snapshot)
+
+
+@router.get("/patients/{patient_id}/condition-snapshots", response_model=list[PatientConditionSnapshotResponse])
+def list_patient_condition_snapshots(
+    patient_id: int,
+    db: Session = Depends(get_db),
+) -> list[PatientConditionSnapshotResponse]:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    snapshots = db.scalars(
+        select(PatientConditionSnapshot)
+        .where(PatientConditionSnapshot.patient_id == patient_id)
+        .order_by(PatientConditionSnapshot.created_at.desc())
+    ).all()
+    return [_snapshot_response(item) for item in snapshots]
+
+
+@router.post("/patients/{patient_id}/history/query", response_model=list[PatientConditionSnapshotResponse])
+def query_patient_history(
+    patient_id: int,
+    payload: PatientHistoryQueryRequest,
+    db: Session = Depends(get_db),
+) -> list[PatientConditionSnapshotResponse]:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    query_text = payload.query_text.lower().strip()
+    snapshots = db.scalars(
+        select(PatientConditionSnapshot)
+        .where(PatientConditionSnapshot.patient_id == patient_id)
+        .order_by(PatientConditionSnapshot.created_at.desc())
+    ).all()
+    if not query_text:
+        return [_snapshot_response(item) for item in snapshots]
+
+    matches: list[PatientConditionSnapshotResponse] = []
+    for item in snapshots:
+        haystack = " ".join(
+            part
+            for part in [
+                item.summary,
+                item.snapshot_type,
+                item.source_event_type or "",
+                item.profile_json or "",
+                item.conditions_json or "",
+                item.prescriptions_json or "",
+                item.vitals_json or "",
+            ]
+            if part
+        ).lower()
+        if query_text in haystack:
+            matches.append(_snapshot_response(item))
+    return matches
+
+
+@router.patch("/patients/{patient_id}/profile", response_model=PatientProfileResponse)
+def update_patient_profile(
+    patient_id: int,
+    payload: PatientProfileUpdateRequest,
+    db: Session = Depends(get_db),
+) -> PatientProfileResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    if detail is None:
+        detail = PatientProfileDetail(patient_id=patient_id)
+        db.add(detail)
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "full_name" in updates:
+        patient.full_name = updates["full_name"] or patient.full_name
+    if "preferred_language" in updates:
+        patient.preferred_language = updates["preferred_language"] or patient.preferred_language
+    if "date_of_birth" in updates:
+        patient.date_of_birth = updates["date_of_birth"]
+    if "summary" in updates:
+        patient.summary = updates["summary"]
+
+    if "height_cm" in updates:
+        detail.height_cm = updates["height_cm"]
+    if "weight_kg" in updates:
+        detail.weight_kg = updates["weight_kg"]
+    if "blood_group" in updates:
+        detail.blood_group = updates["blood_group"]
+    if "allergies" in updates:
+        detail.allergies_json = json.dumps(updates["allergies"] or [], ensure_ascii=True)
+    if "emergency_contact_name" in updates:
+        detail.emergency_contact_name = updates["emergency_contact_name"]
+    if "emergency_contact_phone" in updates:
+        detail.emergency_contact_phone = updates["emergency_contact_phone"]
+    if "primary_language" in updates:
+        detail.primary_language = updates["primary_language"]
+    if "notes" in updates:
+        detail.notes = updates["notes"]
+
+    db.commit()
+    db.refresh(patient)
+    db.refresh(detail)
+    _create_profile_snapshot(db=db, patient=patient, detail=detail, source_event_type="profile_update")
+    return _profile_response(patient, detail)
+
+
+@router.post("/patients/{patient_id}/vitals", response_model=PatientVitalResponse)
+def create_patient_vital(
+    patient_id: int,
+    payload: PatientVitalCreateRequest,
+    db: Session = Depends(get_db),
+) -> PatientVitalResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    vital = PatientVital(
+        patient_id=patient_id,
+        blood_pressure=payload.blood_pressure,
+        heart_rate_bpm=payload.heart_rate_bpm,
+        blood_glucose_mg_dl=payload.blood_glucose_mg_dl,
+        temperature_c=payload.temperature_c,
+        weight_kg=payload.weight_kg,
+        source=payload.source,
+    )
+    db.add(vital)
+    db.commit()
+    db.refresh(vital)
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    _create_profile_snapshot(
+        db=db,
+        patient=patient,
+        detail=detail,
+        source_event_type="vital_added",
+        source_event_id=str(vital.id),
+    )
+    return _vital_response(vital)
+
+
+def _resolve_doctor_for_patient(
+    db: Session,
+    patient_id: int,
+    doctor_id: int | None = None,
+) -> Doctor | None:
+    if doctor_id is not None:
+        return db.scalar(
+            select(Doctor)
+            .join(PatientDoctorMap, PatientDoctorMap.doctor_id == Doctor.id)
+            .where(
+                Doctor.id == doctor_id,
+                PatientDoctorMap.patient_id == patient_id,
+            )
+        )
+
+    mapping = db.scalar(
+        select(PatientDoctorMap)
+        .where(PatientDoctorMap.patient_id == patient_id)
+        .order_by(PatientDoctorMap.is_default.desc(), PatientDoctorMap.created_at.asc())
+    )
+    if mapping is None:
+        return None
+    return db.scalar(select(Doctor).where(Doctor.id == mapping.doctor_id))
+
+
+def _vision_suggested_actions(category: str, diet_relevant: bool) -> list[VisionSuggestedAction]:
+    actions = [
+        VisionSuggestedAction(
+            action_id="ask_follow_up",
+            label="Ask follow-up",
+            description="Turn this upload into a guided follow-up question through the assistant.",
+        ),
+        VisionSuggestedAction(
+            action_id="send_doctor_handoff",
+            label="Send doctor handoff",
+            description="Escalate the result to the mapped doctor with the current care context.",
+        ),
+        VisionSuggestedAction(
+            action_id="chat_with_doctor",
+            label="Chat with doctor",
+            description="Use this upload as context for the next doctor-facing conversation step.",
+        ),
+    ]
+    if category == "PRESCRIPTION":
+        actions.append(
+            VisionSuggestedAction(
+                action_id="review_medication",
+                label="Review medication",
+                description="Use the extracted prescription details in Medication Hub.",
+            )
+        )
+    elif diet_relevant:
+        actions.append(
+            VisionSuggestedAction(
+                action_id="review_diet_support",
+                label="Review diet support",
+                description="Open medication-aware food guidance linked to this upload.",
+            )
+        )
+    return actions
+
+@router.get("/patients/{patient_id}/vitals", response_model=list[PatientVitalResponse])
+def list_patient_vitals(patient_id: int, db: Session = Depends(get_db)) -> list[PatientVitalResponse]:
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+    vitals = db.scalars(
+        select(PatientVital).where(PatientVital.patient_id == patient_id).order_by(PatientVital.recorded_at.desc())
+    ).all()
+    return [_vital_response(item) for item in vitals]
 
 
 @router.post("/doctors", response_model=DoctorResponse)
@@ -488,6 +963,16 @@ def prescription_scan(payload: PrescriptionScanRequest, db: Session = Depends(ge
         image_reference=payload.image_reference,
         raw_text_hint=payload.raw_text_hint,
     )
+    patient = db.scalar(select(Patient).where(Patient.id == payload.patient_id))
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == payload.patient_id))
+    if patient is not None:
+        _create_profile_snapshot(
+            db=db,
+            patient=patient,
+            detail=detail,
+            source_event_type="prescription_upload",
+            source_event_id=str(prescription.id),
+        )
     return PrescriptionScanResponse(
         prescription_id=prescription.id,
         medication_name=prescription.medication_name,
@@ -554,6 +1039,16 @@ def escalate(payload: EscalateRequest, db: Session = Depends(get_db)) -> Escalat
     db.add(case)
     db.commit()
     db.refresh(case)
+    patient = db.scalar(select(Patient).where(Patient.id == payload.patient_id))
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == payload.patient_id))
+    if patient is not None:
+        _create_profile_snapshot(
+            db=db,
+            patient=patient,
+            detail=detail,
+            source_event_type="doctor_handoff",
+            source_event_id=str(case.id),
+        )
 
     orchestrator.integrations.log_integration_event(
         "escalation_case_created",
@@ -706,6 +1201,166 @@ def upload_document_file(
     )
 
 
+@router.post("/vision/upload-analyze", response_model=VisionUploadAnalyzeResponse)
+def vision_upload_analyze(
+    patient_id: int = Form(...),
+    file: UploadFile = File(...),
+    doctor_id: int | None = Form(None),
+    disease_name: str | None = Form(None),
+    capture_date: str | None = Form(None),
+    create_handoff: bool = Form(False),
+    db: Session = Depends(get_db),
+) -> VisionUploadAnalyzeResponse:
+    import os
+    import tempfile
+
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    doctor = _resolve_doctor_for_patient(db=db, patient_id=patient_id, doctor_id=doctor_id)
+
+    original_name = file.filename or "medical-upload"
+    suffix = os.path.splitext(original_name)[1] or ""
+    image_bytes = file.file.read()
+    mime_type = file.content_type or "application/octet-stream"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(image_bytes)
+        tmp_path = tmp.name
+
+    try:
+        analysis = _gemini_vision.auto_analyze_image(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            file_path=tmp_path,
+        )
+        category = str(analysis.get("category", "OTHER")).upper()
+        upload_result = orchestrator.integrations.upload_document(
+            db=db,
+            patient_id=patient_id,
+            file_path=tmp_path,
+            mime_type=mime_type,
+            doctor_name=None if doctor is None else doctor.full_name,
+            patient_name=patient.full_name,
+            disease_name=disease_name or patient.summary or "general-condition",
+            capture_date=capture_date,
+            image_category=category,
+        )
+    finally:
+        os.unlink(tmp_path)
+
+    diagnostic_image_base64 = None
+    if category == "SYMPTOM":
+        diagnostic_image_base64 = _gemini_vision.generate_diagnostic_image(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            analysis=analysis,
+        )
+
+    prescription = None
+    if category == "PRESCRIPTION":
+        raw_text_hint = "\n".join(
+            [
+                item
+                for item in [
+                    str(analysis.get("summary") or "").strip(),
+                    *[str(entry).strip() for entry in analysis.get("findings", []) if str(entry).strip()],
+                ]
+                if item
+            ]
+        )
+        prescription = orchestrator.intake.scan_prescription(
+            db=db,
+            patient_id=patient_id,
+            image_reference=upload_result.get("webViewLink") or upload_result.get("name") or original_name,
+            raw_text_hint=raw_text_hint or None,
+        )
+        prescription.document_drive_file_id = upload_result.get("id")
+        prescription.document_drive_file_url = upload_result.get("webViewLink")
+        prescription.drive_path = upload_result.get("drive_path")
+        db.add(prescription)
+        db.commit()
+        db.refresh(prescription)
+
+    created_case_id = None
+    snapshot_event_type = "vision_upload"
+    snapshot_event_id = str(upload_result.get("id") or upload_result.get("name") or original_name)
+    if create_handoff:
+        case = orchestrator.hitl.create_case(
+            db,
+            patient_id,
+            "doctor_review",
+            (
+                f"Vision upload review requested for {patient.full_name}. "
+                f"Category: {category}. Summary: {analysis.get('summary') or 'No summary available.'}"
+            ),
+            doctor_id=None if doctor is None else doctor.id,
+            urgency="high" if category in {"PRESCRIPTION", "SYMPTOM"} else "medium",
+        )
+        created_case_id = case.id
+        snapshot_event_type = "vision_handoff"
+        snapshot_event_id = str(case.id)
+
+    snapshot = _create_profile_snapshot(
+        db=db,
+        patient=patient,
+        detail=detail,
+        source_event_type=snapshot_event_type,
+        source_event_id=snapshot_event_id,
+        snapshot_type="vision_upload",
+        summary=(
+            f"{original_name} analyzed as {category.lower()}. "
+            f"{analysis.get('summary') or 'Vision workflow completed.'}"
+        ),
+    )
+
+    drive_upload = DriveUploadResponse(
+        patient_id=patient_id,
+        file_id=upload_result["id"],
+        file_name=upload_result["name"],
+        web_view_link=upload_result.get("webViewLink"),
+        prescription_id=None if prescription is None else prescription.id,
+        image_category=upload_result.get("image_category"),
+        doctor_name=upload_result.get("doctor_name"),
+        patient_name=upload_result.get("patient_name"),
+        document_type=upload_result.get("document_type"),
+        disease_name=upload_result.get("disease_name"),
+        capture_date=upload_result.get("capture_date"),
+        drive_path=upload_result.get("drive_path"),
+    )
+
+    detected_type = analysis.get("detected_type")
+    if detected_type is None:
+        detected_type = category.lower()
+
+    return VisionUploadAnalyzeResponse(
+        patient_id=patient_id,
+        category=category,
+        analysis_type=str(analysis.get("analysis_type", "auto")),
+        detected_type=str(detected_type),
+        medication_name=analysis.get("medication_name") or (None if prescription is None else prescription.medication_name),
+        dosage=analysis.get("dosage") or (None if prescription is None else prescription.dosage),
+        instructions=analysis.get("instructions") or (None if prescription is None else prescription.instructions),
+        severity=analysis.get("severity"),
+        confidence=int(analysis.get("confidence", 0)),
+        findings=[str(item) for item in analysis.get("findings", [])],
+        summary=str(analysis.get("summary") or "Vision upload processed."),
+        diet_relevant=bool(analysis.get("diet_relevant", False)),
+        model_used=_gemini_vision._analysis_model_id,
+        diagnostic_image_base64=diagnostic_image_base64,
+        drive_upload=drive_upload,
+        prescription_id=None if prescription is None else prescription.id,
+        snapshot_id=snapshot.id,
+        created_case_id=created_case_id,
+        suggested_actions=_vision_suggested_actions(
+            category=category,
+            diet_relevant=bool(analysis.get("diet_relevant", False)),
+        ),
+    )
+
+
 @router.post("/calendar/events", response_model=CalendarEventResponse)
 def create_calendar_event(payload: CalendarEventRequest, db: Session = Depends(get_db)) -> CalendarEventResponse:
     result = orchestrator.integrations.create_calendar_event(
@@ -734,6 +1389,65 @@ def lookup_drug_label(payload: DrugLabelRequest) -> DrugLabelResponse:
 def pharmacy_search(payload: PharmacySearchRequest) -> PharmacySearchResponse:
     result = orchestrator.integrations.search_nearby_pharmacies(payload.location_query)
     return PharmacySearchResponse(**result)
+
+
+@router.post("/caremaze/nearby-care-destinations", response_model=CareDestinationSearchResponse)
+def nearby_care_destinations(
+    payload: CareDestinationSearchRequest,
+    db: Session = Depends(get_db),
+) -> CareDestinationSearchResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == payload.patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    primary_condition = db.scalar(
+        select(ChronicCondition)
+        .where(ChronicCondition.patient_id == payload.patient_id)
+        .order_by(ChronicCondition.id.asc())
+    )
+    result = orchestrator.integrations.search_nearby_care_destinations(
+        destination_type=payload.destination_type,
+        location_query=payload.location_query,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        medication_name=payload.medication_name,
+        condition_name=payload.condition_name or (None if primary_condition is None else primary_condition.name),
+    )
+    return CareDestinationSearchResponse(
+        patient_id=payload.patient_id,
+        searched_location=result["searched_location"],
+        destination_type=result["destination_type"],
+        source_used=result["source_used"],
+        summary=result["summary"],
+        destinations=[CareDestinationResponse(**item) for item in result["destinations"]],
+    )
+
+
+@router.post("/caremaze/map-route", response_model=CareMapRouteResponse)
+def caremaze_map_route(
+    payload: CareMapRouteRequest,
+    db: Session = Depends(get_db),
+) -> CareMapRouteResponse:
+    patient = db.scalar(select(Patient).where(Patient.id == payload.patient_id))
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    primary_condition = db.scalar(
+        select(ChronicCondition)
+        .where(ChronicCondition.patient_id == payload.patient_id)
+        .order_by(ChronicCondition.id.asc())
+    )
+    result = orchestrator.integrations.build_care_route(
+        destination_name=payload.destination_name,
+        destination_type=payload.destination_type,
+        location_query=payload.location_query,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        destination_address=payload.destination_address,
+        medication_name=payload.medication_name,
+        condition_name=payload.condition_name or (None if primary_condition is None else primary_condition.name),
+    )
+    return CareMapRouteResponse(patient_id=payload.patient_id, **result)
 
 
 @router.get("/orchestration/check-in/{patient_id}", response_model=DailyCheckInResponse)
@@ -977,7 +1691,6 @@ def orchestration_voice_route(
     return ConversationRoutingResponse(**result)
 
 
-import json
 from fastapi.responses import StreamingResponse
 import re
 
@@ -1174,3 +1887,124 @@ def caremaze_analyze_prescription(
         summary=result["summary"],
         model_used=_gemini_vision._analysis_model_id,
     )
+
+# ── Doctor-Patient Chat ──────────────────────────────────────
+
+
+@router.get("/chat/threads", response_model=ChatThreadListResponse)
+def list_chat_threads(patient_id: int | None = None, doctor_id: int | None = None, db: Session = Depends(get_db)):
+    from cure_quest.db.models import ChatThread, ChatMessage
+    from sqlalchemy import func
+
+    query = db.query(ChatThread)
+    if patient_id is not None:
+        query = query.filter(ChatThread.patient_id == patient_id)
+    if doctor_id is not None:
+        query = query.filter(ChatThread.doctor_id == doctor_id)
+
+    threads = query.order_by(ChatThread.updated_at.desc()).all()
+    result = []
+    for thread in threads:
+        msg_count = db.query(func.count(ChatMessage.id)).filter(ChatMessage.thread_id == thread.id).scalar() or 0
+        last_msg = db.query(ChatMessage).filter(ChatMessage.thread_id == thread.id).order_by(ChatMessage.created_at.desc()).first()
+        last_msg_resp = None
+        if last_msg:
+            last_msg_resp = ChatMessageResponse(
+                id=last_msg.id,
+                thread_id=last_msg.thread_id,
+                sender_role=last_msg.sender_role,
+                sender_display_name=last_msg.sender_display_name,
+                body=last_msg.body,
+                created_at=last_msg.created_at.isoformat(),
+            )
+        result.append(ChatThreadResponse(
+            id=thread.id,
+            patient_id=thread.patient_id,
+            doctor_id=thread.doctor_id,
+            subject=thread.subject,
+            status=thread.status,
+            created_at=thread.created_at.isoformat(),
+            updated_at=thread.updated_at.isoformat(),
+            last_message=last_msg_resp,
+            message_count=msg_count,
+        ))
+    return ChatThreadListResponse(threads=result)
+
+
+@router.post("/chat/threads", response_model=ChatThreadResponse, status_code=201)
+def create_chat_thread(payload: ChatThreadCreateRequest, db: Session = Depends(get_db)):
+    from cure_quest.db.models import ChatThread
+
+    thread = ChatThread(
+        patient_id=payload.patient_id,
+        doctor_id=payload.doctor_id,
+        subject=payload.subject,
+    )
+    db.add(thread)
+    db.commit()
+    db.refresh(thread)
+    return ChatThreadResponse(
+        id=thread.id,
+        patient_id=thread.patient_id,
+        doctor_id=thread.doctor_id,
+        subject=thread.subject,
+        status=thread.status,
+        created_at=thread.created_at.isoformat(),
+        updated_at=thread.updated_at.isoformat(),
+    )
+
+
+@router.get("/chat/threads/{thread_id}/messages", response_model=ChatMessageListResponse)
+def list_chat_messages(thread_id: int, db: Session = Depends(get_db)):
+    from cure_quest.db.models import ChatMessage
+
+    messages = db.query(ChatMessage).filter(
+        ChatMessage.thread_id == thread_id
+    ).order_by(ChatMessage.created_at.asc()).all()
+
+    return ChatMessageListResponse(
+        thread_id=thread_id,
+        messages=[
+            ChatMessageResponse(
+                id=msg.id,
+                thread_id=msg.thread_id,
+                sender_role=msg.sender_role,
+                sender_display_name=msg.sender_display_name,
+                body=msg.body,
+                created_at=msg.created_at.isoformat(),
+            )
+            for msg in messages
+        ],
+    )
+
+
+@router.post("/chat/threads/{thread_id}/messages", response_model=ChatMessageResponse, status_code=201)
+def create_chat_message(thread_id: int, payload: ChatMessageCreateRequest, db: Session = Depends(get_db)):
+    from cure_quest.db.models import ChatThread, ChatMessage
+    from datetime import datetime, UTC
+
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+    if thread is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Chat thread not found")
+
+    message = ChatMessage(
+        thread_id=thread_id,
+        sender_role=payload.sender_role,
+        sender_display_name=payload.sender_display_name,
+        body=payload.body,
+    )
+    db.add(message)
+    thread.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(message)
+
+    return ChatMessageResponse(
+        id=message.id,
+        thread_id=message.thread_id,
+        sender_role=message.sender_role,
+        sender_display_name=message.sender_display_name,
+        body=message.body,
+        created_at=message.created_at.isoformat(),
+    )
+

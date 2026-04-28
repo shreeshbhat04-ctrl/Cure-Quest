@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -162,6 +163,19 @@ class CalendarEventResponse(BaseModel):
     escalation_case_id: int | None = None
 
 
+class MedicineGroundedAnswerRequest(BaseModel):
+    patient_id: int
+    medication_name: str
+
+
+class MedicineGroundedAnswerResponse(BaseModel):
+    patient_id: int
+    medication_name: str
+    safety_summary: str
+    source_used: str
+    wiki_link: str | None = None
+
+
 class DrugLabelRequest(BaseModel):
     medication_name: str
 
@@ -181,10 +195,71 @@ class PharmacySearchResponse(BaseModel):
     pharmacies: list[dict]
 
 
+class CareDestinationSearchRequest(BaseModel):
+    patient_id: int
+    destination_type: str = "pharmacy"
+    location_query: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    medication_name: str | None = None
+    condition_name: str | None = None
+
+
+class CareDestinationResponse(BaseModel):
+    name: str
+    destination_type: str
+    address: str
+    distance_km: float | None = None
+    eta_minutes: int | None = None
+    map_query: str | None = None
+    map_url: str | None = None
+    notes: str | None = None
+
+
+class CareDestinationSearchResponse(BaseModel):
+    patient_id: int
+    searched_location: str
+    destination_type: str
+    source_used: str
+    summary: str
+    destinations: list[CareDestinationResponse] = Field(default_factory=list)
+
+
+class CareMapRouteRequest(BaseModel):
+    patient_id: int
+    destination_name: str
+    destination_type: str = "pharmacy"
+    destination_address: str | None = None
+    location_query: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    medication_name: str | None = None
+    condition_name: str | None = None
+
+
+class CareMapRouteResponse(BaseModel):
+    patient_id: int
+    source_used: str
+    origin_label: str
+    destination_label: str
+    destination_type: str
+    route_summary: str
+    estimated_minutes: int | None = None
+    distance_km: float | None = None
+    map_query: str | None = None
+    map_url: str | None = None
+    steps: list[str] = Field(default_factory=list)
+
+
 class RoutineTaskResponse(BaseModel):
     task_id: str
     name: str
     completed: bool
+    source: str = "Asana"
+    title: str | None = None
+    short_summary: str | None = None
+    full_details: str | None = None
+    due_at: str | None = None
     due_on: str | None = None
     notes: str | None = None
     assignee_name: str | None = None
@@ -205,6 +280,12 @@ class DoctorResponse(BaseModel):
     relationship_type: str | None = None
 
 
+class AsanaWorkspaceUserResponse(BaseModel):
+    gid: str
+    name: str
+    email: str | None = None
+
+
 class DoctorCreateRequest(BaseModel):
     full_name: str
     specialty: str | None = None
@@ -213,6 +294,88 @@ class DoctorCreateRequest(BaseModel):
     asana_user_gid: str | None = None
     asana_workspace_gid: str | None = None
     profile_image_key: str | None = None
+
+
+class PatientProfileResponse(BaseModel):
+    patient_id: int
+    full_name: str
+    preferred_language: str
+    date_of_birth: str | None = None
+    summary: str | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    blood_group: str | None = None
+    allergies: list[str] = Field(default_factory=list)
+    emergency_contact_name: str | None = None
+    emergency_contact_phone: str | None = None
+    primary_language: str | None = None
+    notes: str | None = None
+    updated_at: str | None = None
+
+
+class PatientProfileUpdateRequest(BaseModel):
+    full_name: str | None = None
+    preferred_language: str | None = None
+    date_of_birth: date | None = None
+    summary: str | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    blood_group: str | None = None
+    allergies: list[str] | None = None
+    emergency_contact_name: str | None = None
+    emergency_contact_phone: str | None = None
+    primary_language: str | None = None
+    notes: str | None = None
+
+
+class PatientVitalCreateRequest(BaseModel):
+    blood_pressure: str | None = None
+    heart_rate_bpm: int | None = None
+    blood_glucose_mg_dl: float | None = None
+    temperature_c: float | None = None
+    weight_kg: float | None = None
+    source: str | None = "manual_entry"
+
+
+class PatientVitalResponse(BaseModel):
+    id: int
+    patient_id: int
+    blood_pressure: str | None = None
+    heart_rate_bpm: int | None = None
+    blood_glucose_mg_dl: float | None = None
+    temperature_c: float | None = None
+    weight_kg: float | None = None
+    source: str | None = None
+    recorded_at: str
+
+
+class PatientConditionSnapshotResponse(BaseModel):
+    id: int
+    patient_id: int
+    snapshot_type: str
+    summary: str
+    profile: dict | None = None
+    conditions: list[dict] = Field(default_factory=list)
+    prescriptions: list[dict] = Field(default_factory=list)
+    vitals: list[dict] = Field(default_factory=list)
+    source_event_type: str | None = None
+    source_event_id: str | None = None
+    created_at: str
+
+
+class PatientConditionSnapshotCreateRequest(BaseModel):
+    snapshot_type: str = "manual"
+    summary: str
+    profile: dict | None = None
+    conditions: list[dict] = Field(default_factory=list)
+    prescriptions: list[dict] = Field(default_factory=list)
+    vitals: list[dict] = Field(default_factory=list)
+    source_event_type: str | None = None
+    source_event_id: str | None = None
+
+
+class PatientHistoryQueryRequest(BaseModel):
+    query_text: str
 
 
 class PatientDoctorMapRequest(BaseModel):
@@ -326,6 +489,19 @@ class ScaleDietRecipeRequest(BaseModel):
 
 class ScaleDietRecipeResponse(BaseModel):
     recipe: DietRecipe
+
+
+
+class DietRecipeTutorialResponse(BaseModel):
+    recipe_id: str
+    search_query: str
+    youtube_url: str
+
+
+class MarketIngredientResponse(BaseModel):
+    patient_id: int
+    recipe_id: str | None = None
+    ingredients: list[dict] = Field(default_factory=list)
 
 
 class DocumentPipelineRequest(BaseModel):
@@ -484,23 +660,6 @@ class MedicalMemorySearchResponse(BaseModel):
     results: list[MedicalMemorySearchResult]
 
 
-class MedGemmaRequest(BaseModel):
-    patient_id: int
-    prompt: str
-    image_path: str | None = None
-    max_new_tokens: int = 128
-
-
-class MedGemmaResponse(BaseModel):
-    patient_id: int
-    profile: dict | None = None
-    provider: str
-    model: str
-    prompt: str
-    image_path: str | None = None
-    result: list | dict
-
-
 class MedSigLIPClassificationRequest(BaseModel):
     patient_id: int
     image_path: str
@@ -515,6 +674,23 @@ class MedSigLIPClassificationResponse(BaseModel):
     image_path: str
     candidate_labels: list[str]
     result: list | dict
+
+
+class MedGemmaRequest(BaseModel):
+    patient_id: int
+    prompt: str
+    image_path: str | None = None
+    max_new_tokens: int = 128
+
+
+class MedGemmaResponse(BaseModel):
+    patient_id: int
+    profile: dict | None = None
+    provider: str
+    model: str
+    prompt: str
+    image_path: str | None = None
+    result: Any
 
 
 class DocumentFlowRequest(BaseModel):
@@ -543,6 +719,27 @@ class DocumentFlowResponse(BaseModel):
     flow_notes: list[str]
 
 
+class CareDestinationRequest(BaseModel):
+    patient_id: int
+    location_query: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    destination_type: str = "pharmacy"
+    medication_name: str | None = None
+    condition_context: str | None = None
+
+
+class CareRouteResponse(BaseModel):
+    patient_id: int
+    destination_type: str
+    origin_label: str
+    destination_label: str
+    source: str
+    route_summary: str
+    map_embed_url: str | None = None
+    map_query_url: str | None = None
+
+
 class RoutineAutomationResponse(BaseModel):
     patient_id: int
     profile: dict | None = None
@@ -553,6 +750,15 @@ class RoutineAutomationResponse(BaseModel):
     due_today_count: int
     message: str
     case: dict | None = None
+
+
+class CareDestinationPatientResponse(BaseModel):
+    patient_id: int
+    destination_type: str
+    origin_label: str
+    source: str
+    destinations: list[CareDestinationResponse]
+    map_query_url: str | None = None
 
 
 class OrchestrationManifestResponse(BaseModel):
@@ -583,3 +789,79 @@ class PrescriptionAnalysisResponse(BaseModel):
     findings: list[str]
     summary: str
     model_used: str
+
+
+class VisionSuggestedAction(BaseModel):
+    action_id: str
+    label: str
+    description: str
+
+
+class VisionUploadAnalyzeResponse(BaseModel):
+    patient_id: int
+    category: str
+    analysis_type: str
+    detected_type: str | None = None
+    medication_name: str | None = None
+    dosage: str | None = None
+    instructions: str | None = None
+    severity: str | None = None
+    confidence: int
+    findings: list[str] = Field(default_factory=list)
+    summary: str
+    diet_relevant: bool = False
+    model_used: str
+    diagnostic_image_base64: str | None = None
+    drive_upload: DriveUploadResponse
+    prescription_id: int | None = None
+    snapshot_id: int | None = None
+    created_case_id: int | None = None
+    suggested_actions: list[VisionSuggestedAction] = Field(default_factory=list)
+
+
+# ── Doctor-Patient Chat models ──────────────────────────────────────
+
+
+class ChatThreadCreateRequest(BaseModel):
+    patient_id: int
+    doctor_id: int
+    subject: str = "General consultation"
+
+
+SenderRole = Literal["patient", "doctor"]
+
+
+class ChatMessageCreateRequest(BaseModel):
+    sender_role: SenderRole
+    sender_display_name: str
+    body: str
+
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    thread_id: int
+    sender_role: SenderRole
+    sender_display_name: str
+    body: str
+    created_at: str
+
+
+class ChatThreadResponse(BaseModel):
+    id: int
+    patient_id: int
+    doctor_id: int
+    subject: str
+    status: str
+    created_at: str
+    updated_at: str
+    last_message: ChatMessageResponse | None = None
+    message_count: int = 0
+
+
+class ChatThreadListResponse(BaseModel):
+    threads: list[ChatThreadResponse]
+
+
+class ChatMessageListResponse(BaseModel):
+    thread_id: int
+    messages: list[ChatMessageResponse]

@@ -49,10 +49,9 @@ class Settings(BaseSettings):
     bigquery_table_id: str = "integration_events"
     openfda_api_key: str | None = None
     google_maps_api_key: str | None = None
+    use_synthetic_maps: bool = False
     medical_model_backend: Literal["placeholder", "huggingface", "vertex"] = "placeholder"
     huggingface_hub_token: str | None = None
-    medgemma_proxy_enabled: bool = True
-    medgemma_model_id: str = "google/medgemma-1.5-4b-it"
     medsiglip_model_id: str = "google/medsiglip-448"
     medical_embedding_dimensions: int = 768
     medical_vector_table_name: str = "medical_memories_vector"
