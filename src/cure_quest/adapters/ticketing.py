@@ -271,8 +271,8 @@ class AsanaTicketingAdapter(TicketingAdapter):
                 for item in payload
             ]
         except Exception as error:
-            logger.warning("Asana workspace user lookup failed, falling back to mock users: %s", error)
-            return self._mock.list_workspace_users(workspace_gid=resolved_workspace_gid)
+            logger.exception("Asana workspace user lookup failed: %s", error)
+            raise
 
 
 def build_ticketing_adapter() -> TicketingAdapter:

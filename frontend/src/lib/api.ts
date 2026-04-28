@@ -34,6 +34,7 @@ export {
 
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+const API_BASE = API_BASE_URL;
 export const DEMO_PATIENT_ID = Number(import.meta.env.VITE_DEMO_PATIENT_ID ?? '2');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -518,6 +519,7 @@ export interface GoogleAuthStatus {
 }
 
 export interface CareDestination {
+  id?: string | number;
   name: string;
   destination_type: string;
   address: string;
@@ -720,7 +722,11 @@ export async function generateDietRecipes(payload: GenerateDietRecipesPayload): 
 }
 
 export async function fetchMedicineGroundedAnswer(medicationName: string): Promise<MedicineGroundedAnswerResponse> {
-  const patientId = Number(localStorage.getItem('cure_quest_demo_patient_id')) || 2;
+  const patientIdStr = localStorage.getItem('cure_quest_demo_patient_id');
+  if (!patientIdStr) {
+    throw new Error('Patient ID not found in local storage.');
+  }
+  const patientId = Number(patientIdStr);
   const res = await fetch(`${API_BASE}/medicine/grounded-answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -756,9 +762,7 @@ export async function fetchMarketIngredients(patientId: number, recipeId?: strin
   if (!res.ok) throw new Error('Failed to fetch market ingredients');
   return res.json();
 }
-),
-  });
-}
+
 
 export async function createEscalation(
   patientId: number,

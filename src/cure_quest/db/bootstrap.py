@@ -74,6 +74,7 @@ def _apply_lightweight_migrations() -> None:
             "doctor_id": "ALTER TABLE chat_threads ADD COLUMN doctor_id INTEGER",
             "subject": "ALTER TABLE chat_threads ADD COLUMN subject VARCHAR(500)",
             "status": "ALTER TABLE chat_threads ADD COLUMN status VARCHAR(40)",
+            "created_at": "ALTER TABLE chat_threads ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "ALTER TABLE chat_threads ADD COLUMN updated_at TIMESTAMP",
         },
         "chat_messages": {
@@ -81,6 +82,7 @@ def _apply_lightweight_migrations() -> None:
             "sender_role": "ALTER TABLE chat_messages ADD COLUMN sender_role VARCHAR(40)",
             "sender_display_name": "ALTER TABLE chat_messages ADD COLUMN sender_display_name VARCHAR(255)",
             "body": "ALTER TABLE chat_messages ADD COLUMN body TEXT",
+            "created_at": "ALTER TABLE chat_messages ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         },
     }
 

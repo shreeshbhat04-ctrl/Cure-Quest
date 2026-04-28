@@ -59,31 +59,6 @@ def analytics_log_event(event_type: str, payload: dict) -> dict:
     return analytics_adapter.log_event(event_type=event_type, payload=payload)
 
 
-@mcp.tool()
-def caremaze_search_link(query: str) -> dict[str, str]:
-    """Build a Google Maps search link for a care destination query."""
-    return {
-        "query": query,
-        "map_url": f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}",
-        "source_used": "mcp_link_builder",
-    }
-
-
-@mcp.tool()
-def caremaze_route_link(origin: str, destination: str) -> dict[str, str]:
-    """Build a Google Maps directions link for origin and destination labels."""
-    return {
-        "origin": origin,
-        "destination": destination,
-        "map_url": (
-            "https://www.google.com/maps/dir/?api=1"
-            f"&origin={quote_plus(origin)}"
-            f"&destination={quote_plus(destination)}"
-        ),
-        "source_used": "mcp_link_builder",
-    }
-
-
 
 def main() -> None:
     mcp.run()

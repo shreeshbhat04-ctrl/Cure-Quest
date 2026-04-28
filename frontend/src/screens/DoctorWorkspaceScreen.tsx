@@ -37,6 +37,7 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const chatPatients = [
     { id: 1, name: 'Shreesha', condition: 'Eczema, Early stage diabetes', initial: 'S', lastMessage: 'Can you help?', image: patient2Image },
     { id: 2, name: 'Alex M.', condition: 'Hypertension', initial: 'A', lastMessage: 'Thanks, Dr!', image: patient1Image },
@@ -100,6 +101,10 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
   useEffect(() => {
     if (!selectedDoctorId) return;
     let active = true;
+
+    setActiveThreadId(null);
+    setChatMessages([]);
+
     const loadThreads = async () => {
       try {
         setChatLoading(true);
@@ -108,6 +113,8 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
         setChatThreads(result.threads);
         if (result.threads.length > 0) {
           setActiveThreadId(result.threads[0].id);
+        } else {
+          setActiveThreadId(null);
         }
       } catch (err) {
         console.error(err);
@@ -139,18 +146,23 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
   }, [activeThreadId]);
 
   const handleSendMessage = async () => {
-    if (!chatInput.trim() || !activeThreadId || !selectedDoctor) return;
+    if (!chatInput.trim() || !activeThreadId || !selectedDoctor || isSending) return;
+    const optimisticMessage = chatInput.trim();
+    setIsSending(true);
+    setChatInput('');
     try {
       const msg = await sendChatMessage(
         activeThreadId,
         'doctor',
         selectedDoctor.full_name,
-        chatInput.trim()
+        optimisticMessage
       );
       setChatMessages(prev => [...prev, msg]);
-      setChatInput('');
     } catch (err) {
       console.error(err);
+      setChatInput(optimisticMessage); // revert on error
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -387,11 +399,18 @@ export function DoctorWorkspaceScreen({ patientId, onRoleChange }: { patientId: 
                           type="text"
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !isSending) handleSendMessage(); }}
                           placeholder="Type a message..."
                           className="input-shell flex-1 bg-surface"
+                          disabled={isSending}
                         />
-                        <button onClick={handleSendMessage} className="river-stone-btn bg-primary text-surface px-6 font-medium">Send</button>
+                        <button 
+                          onClick={handleSendMessage} 
+                          disabled={isSending}
+                          className="river-stone-btn bg-primary text-surface px-6 font-medium disabled:opacity-50"
+                        >
+                          {isSending ? 'Sending...' : 'Send'}
+                        </button>
                       </div>
                     </>
                   ) : (

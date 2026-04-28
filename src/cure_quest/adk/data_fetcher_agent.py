@@ -1,10 +1,11 @@
-"""Data Fetcher Agent – retrieves patient data and medicine facts from AlloyDB.
+"""Data Fetcher Agent - retrieves patient data and medicine facts from AlloyDB.
 
 Provides grounded lookup for medicine information, patient profile snapshots,
 and historical condition context via the CureQuest MCP server tools.
 """
 
 import os
+from pathlib import Path
 import sys
 
 from google.adk.agents import LlmAgent
@@ -16,6 +17,8 @@ from cure_quest.config import get_settings
 
 settings = get_settings()
 
+repo_root = Path(__file__).resolve().parents[3]
+
 _server_command = (
     sys.executable
     if settings.mcp_server_command == "python"
@@ -25,7 +28,7 @@ _server_command = (
 _server_params = StdioServerParameters(
     command=_server_command,
     args=settings.mcp_server_arg_list,
-    cwd=str(__import__("pathlib").Path(__file__).resolve().parents[3]),
+    cwd=str(repo_root),
     env=os.environ.copy(),
 )
 

@@ -110,8 +110,13 @@ export function DashboardScreen({
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            {checkin.routine_tasks.slice(0, 4).map((task) => (
-              <div key={task.task_id} className="rounded-[1.25rem] bg-surface-container-lowest/30 p-6 glass-edge">
+            {checkin.routine_tasks.slice(0, 4).map((task) => {
+              const formattedDue = task.due_at
+                ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(task.due_at))
+                : task.due_on;
+
+              return (
+                <div key={task.task_id} className="rounded-[1.25rem] bg-surface-container-lowest/30 p-6 glass-edge">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[1.1rem] font-bold text-on-surface font-serif">{task.title || task.name}</p>
@@ -120,7 +125,7 @@ export function DashboardScreen({
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em] text-on-surface/40">
                       <span>{task.source || 'Routine'}</span>
-                      {task.due_at || task.due_on ? <span>Due {task.due_at || task.due_on}</span> : null}
+                      {formattedDue ? <span>Due {formattedDue}</span> : null}
                       {task.assignee_name ? <span>{task.assignee_name}</span> : null}
                     </div>
                   </div>
@@ -128,6 +133,8 @@ export function DashboardScreen({
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-4">
                   <button
+                    type="button"
+                    aria-expanded={expandedTaskId === task.task_id}
                     onClick={() => setExpandedTaskId((current) => (current === task.task_id ? null : task.task_id))}
                     className="flex items-center gap-2 text-sm text-primary hover:underline"
                   >
@@ -145,8 +152,9 @@ export function DashboardScreen({
                     {task.full_details || task.notes || 'No additional detail was provided for this routine item.'}
                   </div>
                 ) : null}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

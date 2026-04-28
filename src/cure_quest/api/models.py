@@ -480,9 +480,6 @@ class ScaleDietRecipeResponse(BaseModel):
     recipe: DietRecipe
 
 
-class ScaleDietRecipeResponse(BaseModel):
-    recipe: DietRecipe
-
 
 class DietRecipeTutorialResponse(BaseModel):
     recipe_id: str
@@ -694,24 +691,6 @@ class DocumentFlowResponse(BaseModel):
     flow_notes: list[str]
 
 
-class VisionUploadAnalyzeResponse(BaseModel):
-    patient_id: int
-    classification: str
-    analysis_type: str
-    analysis_summary: str
-    findings: list[str]
-    severity: str | None = None
-    medication_name: str | None = None
-    dosage: str | None = None
-    instructions: str | None = None
-    confidence: int
-    drive_result: dict | None = None
-    created_prescription_id: int | None = None
-    created_snapshot_id: int | None = None
-    created_case_id: int | None = None
-    suggested_actions: list[dict] = Field(default_factory=list)
-
-
 class CareDestinationRequest(BaseModel):
     patient_id: int
     location_query: str | None = None
@@ -720,15 +699,6 @@ class CareDestinationRequest(BaseModel):
     destination_type: str = "pharmacy"
     medication_name: str | None = None
     condition_context: str | None = None
-
-
-class CareDestinationResponse(BaseModel):
-    patient_id: int
-    destination_type: str
-    origin_label: str
-    source: str
-    destinations: list[dict] = Field(default_factory=list)
-    map_query_url: str | None = None
 
 
 class CareRouteResponse(BaseModel):
@@ -752,6 +722,15 @@ class RoutineAutomationResponse(BaseModel):
     due_today_count: int
     message: str
     case: dict | None = None
+
+
+class CareDestinationPatientResponse(BaseModel):
+    patient_id: int
+    destination_type: str
+    origin_label: str
+    source: str
+    destinations: list[CareDestinationResponse]
+    map_query_url: str | None = None
 
 
 class OrchestrationManifestResponse(BaseModel):

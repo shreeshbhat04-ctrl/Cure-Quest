@@ -1,6 +1,7 @@
 import logging
 from datetime import date
 from urllib.parse import quote_plus
+import zlib
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import time
@@ -211,7 +212,7 @@ class IntegrationAgent:
     @staticmethod
     def _deterministic_seed(*parts: str) -> int:
         joined = "|".join(parts)
-        return sum(ord(char) for char in joined) or 1
+        return zlib.crc32(joined.encode("utf-8")) or 1
 
     def search_nearby_care_destinations(
         self,
@@ -252,11 +253,7 @@ class IntegrationAgent:
                 }
             )
 
-        source_used = (
-            "google_maps_link_builder"
-            if self.drive.settings.google_maps_api_key
-            else "caremaze_deterministic_fallback"
-        )
+        source_used = "caremaze_synthetic_preview"
         return {
             "provider": "caremaze_map_agent",
             "source_used": source_used,
@@ -287,11 +284,7 @@ class IntegrationAgent:
         estimated_minutes = max(8, int(distance_km * 7))
         context_hint = medication_name or condition_name or destination_type
         route_url = self._build_google_maps_directions(origin_label, destination_label)
-        source_used = (
-            "google_maps_link_builder"
-            if self.drive.settings.google_maps_api_key
-            else "caremaze_deterministic_fallback"
-        )
+        source_used = "caremaze_synthetic_preview"
         steps = [
             f"Start from {origin_label}.",
             f"Head toward {destination_name} for {destination_type} support.",

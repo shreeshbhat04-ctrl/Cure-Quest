@@ -7,7 +7,7 @@ from cure_quest.api.models import PatientIntakeRequest
 from tests.test_orchestrator import StubBrainGateway, StubIntegrations
 
 
-def _seed_patient_and_doctor():
+def _seed_patient_and_doctor() -> tuple[Orchestrator, int, int]:
     init_database()
     orchestrator = Orchestrator(brain_gateway=StubBrainGateway())
     orchestrator.integrations = StubIntegrations()
@@ -23,9 +23,9 @@ def _seed_patient_and_doctor():
         doctor = Doctor(
             full_name="Dr surgeon",
             specialty="Gynaecologist",
-            email="sreeshhb@gmail.com",
-            asana_user_gid="1214276322986923",
-            asana_workspace_gid="1213916290149152",
+            email="doctor@example.com",
+            asana_user_gid="asana-test-user-1",
+            asana_workspace_gid="asana-test-workspace-1",
         )
         db.add(doctor)
         db.commit()
@@ -61,7 +61,7 @@ def test_confirm_action_send_email_resolves_doctor_and_persists_notification() -
         result = orchestrator.confirm_action(
             db=db,
             action_id=draft["action_id"],
-            selected_option="sreeshhb@gmail.com",
+            selected_option="doctor@example.com",
             custom_input=None,
         )
         notifications = db.query(Notification).filter(Notification.patient_id == patient_id).all()
@@ -69,14 +69,14 @@ def test_confirm_action_send_email_resolves_doctor_and_persists_notification() -
     assert result["status"] == "confirmed"
     assert result["result"]["doctor_id"] == doctor_id
     assert result["result"]["doctor_name"] == "Dr surgeon"
-    assert result["result"]["recipient"] == "sreeshhb@gmail.com"
-    assert result["result"]["message_id"] == "msg-for-sreeshhb@gmail.com"
+    assert result["result"]["recipient"] == "doctor@example.com"
+    assert result["result"]["message_id"] == "msg-for-doctor@example.com"
     assert len(notifications) == 1
     assert notifications[0].delivery_status == "sent"
     assert "Dr surgeon" in notifications[0].body
     sent_email = orchestrator.integrations.last_sent_email
     assert sent_email is not None
-    assert sent_email["to"] == "sreeshhb@gmail.com"
+    assert sent_email["to"] == "doctor@example.com"
     assert "Respected Dr surgeon" in sent_email["body_html"]
     assert "Asha Rao" in sent_email["body_html"]
 
@@ -98,10 +98,10 @@ def test_send_gmail_care_summary_resolves_doctor_id_and_persists_notification() 
         )
         notifications = db.query(Notification).filter(Notification.patient_id == patient_id).all()
 
-    assert result["recipient"] == "sreeshhb@gmail.com"
+    assert result["recipient"] == "doctor@example.com"
     assert result["doctor_id"] == doctor_id
     assert result["doctor_name"] == "Dr surgeon"
-    assert result["message_id"] == "msg-for-sreeshhb@gmail.com"
+    assert result["message_id"] == "msg-for-doctor@example.com"
     assert len(notifications) == 1
     assert notifications[0].delivery_status == "sent"
-    assert "sreeshhb@gmail.com" in notifications[0].body
+    assert "doctor@example.com" in notifications[0].body

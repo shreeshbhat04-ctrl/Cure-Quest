@@ -467,6 +467,13 @@ def send_gmail_care_summary(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+    if not result.get("sent"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("error") or "Failed to send care summary email via Gmail."
+        )
+
     patient = db.scalar(select(Patient).where(Patient.id == patient_id))
     detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
     if patient is not None:
@@ -776,6 +783,18 @@ def create_patient_vital(
         weight_kg=payload.weight_kg,
         source=payload.source,
     )
+    db.add(vital)
+    db.commit()
+    db.refresh(vital)
+    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
+    _create_profile_snapshot(
+        db=db,
+        patient=patient,
+        detail=detail,
+        source_event_type="vital_added",
+        source_event_id=str(vital.id),
+    )
+    return _vital_response(vital)
 
 
 def _resolve_doctor_for_patient(
@@ -831,19 +850,6 @@ def _vision_suggested_actions(category: str, diet_relevant: bool) -> list[Vision
             )
         )
     return actions
-    db.add(vital)
-    db.commit()
-    db.refresh(vital)
-    detail = db.scalar(select(PatientProfileDetail).where(PatientProfileDetail.patient_id == patient_id))
-    _create_profile_snapshot(
-        db=db,
-        patient=patient,
-        detail=detail,
-        source_event_type="vital_added",
-        source_event_id=str(vital.id),
-    )
-    return _vital_response(vital)
-
 
 @router.get("/patients/{patient_id}/vitals", response_model=list[PatientVitalResponse])
 def list_patient_vitals(patient_id: int, db: Session = Depends(get_db)) -> list[PatientVitalResponse]:

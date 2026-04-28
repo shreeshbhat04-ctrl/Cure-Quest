@@ -72,7 +72,7 @@ root_agent = LlmAgent(
             connection_params=StdioConnectionParams(server_params=server_params),
         ),
     ],
-    delegates=[
+    sub_agents=[
         vision_agent,
         recipe_agent,
         communication_agent,

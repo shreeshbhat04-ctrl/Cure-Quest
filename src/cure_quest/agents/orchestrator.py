@@ -526,6 +526,16 @@ class Orchestrator:
 
         doctor = None
         if doctor_id is not None:
+            # Verify the doctor is mapped to this patient
+            mapping = db.scalar(
+                select(PatientDoctorMap).where(
+                    PatientDoctorMap.patient_id == patient_id,
+                    PatientDoctorMap.doctor_id == doctor_id
+                )
+            )
+            if mapping is None:
+                raise ValueError("Selected doctor is not associated with this patient.")
+
             doctor = db.scalar(select(Doctor).where(Doctor.id == doctor_id))
             if doctor is None:
                 raise ValueError("Selected doctor was not found.")

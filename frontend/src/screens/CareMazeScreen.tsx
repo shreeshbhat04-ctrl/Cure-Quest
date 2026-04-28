@@ -80,8 +80,8 @@ export function CareMazeScreen({
         patient_id: patientId,
         destination_type: 'pharmacy',
         location_query: locationSource === 'typed' ? locationQuery : null,
-        latitude: locationCoords?.latitude ?? null,
-        longitude: locationCoords?.longitude ?? null,
+        latitude: locationSource === 'browser' ? locationCoords?.latitude ?? null : null,
+        longitude: locationSource === 'browser' ? locationCoords?.longitude ?? null : null,
         medication_name: medicationName,
         condition_name: primaryCondition,
       });
@@ -95,8 +95,8 @@ export function CareMazeScreen({
           destination_type: firstDestination.destination_type,
           destination_address: firstDestination.address,
           location_query: locationSource === 'typed' ? locationQuery : null,
-          latitude: locationCoords?.latitude ?? null,
-          longitude: locationCoords?.longitude ?? null,
+          latitude: locationSource === 'browser' ? locationCoords?.latitude ?? null : null,
+          longitude: locationSource === 'browser' ? locationCoords?.longitude ?? null : null,
           medication_name: medicationName,
           condition_name: primaryCondition,
         });
@@ -108,9 +108,9 @@ export function CareMazeScreen({
       const result = await fetchDietSupport(
         patientId,
         medicationName,
-        locationSource === 'typed'
-          ? locationQuery
-          : `${locationCoords?.latitude?.toFixed(4)}, ${locationCoords?.longitude?.toFixed(4)}`,
+        locationSource === 'browser' && locationCoords
+          ? `${locationCoords.latitude.toFixed(4)}, ${locationCoords.longitude.toFixed(4)}`
+          : locationQuery,
       );
       setSupportResult(result);
       setFeedback(`Care Maze mapped using ${destinationResult.source_used}.`);
@@ -176,6 +176,7 @@ export function CareMazeScreen({
       (error) => {
         setFeedback(`Location access failed: ${error.message}. Using typed location instead.`);
         setLocationSource('typed');
+        setLocationCoords(null);
         setBusyAction(null);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -287,6 +288,7 @@ export function CareMazeScreen({
                 value={locationQuery}
                 onChange={(e) => {
                   setLocationSource('typed');
+                  setLocationCoords(null);
                   setLocationQuery(e.target.value);
                 }}
                 className="input-shell"
@@ -527,15 +529,20 @@ export function CareMazeScreen({
                 <p className="text-xs uppercase tracking-[0.2em] text-primary/75">Nearby destinations</p>
                 <h3 className="mt-2 font-serif text-3xl">Agent-ranked care stops</h3>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Pill tone="sage">{destinations.source_used}</Pill>
+                {destinations.source_used === 'caremaze_synthetic_preview' && (
+                  <span className="text-xs font-medium text-orange-400 uppercase tracking-wider">
+                    Demo Data Only
+                  </span>
+                )}
                 <Pill>{destinations.searched_location}</Pill>
               </div>
             </div>
             <p className="text-sm leading-7 text-on-surface/65">{destinations.summary}</p>
             <div className="grid gap-4 lg:grid-cols-3">
-              {destinations.destinations.map((destination) => (
-                <div key={`${destination.name}-${destination.address}`} className="rounded-[1.5rem] bg-surface-container-low px-5 py-5">
+              {destinations.destinations.map((destination, index) => (
+                <div key={destination.id ?? `${destination.name}-${destination.address}-${index}`} className="rounded-[1.5rem] bg-surface-container-low px-5 py-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-on-surface/82">{destination.name}</p>
@@ -564,8 +571,13 @@ export function CareMazeScreen({
                 <h3 className="font-serif text-3xl">Route agent result</h3>
               </div>
               <p className="max-w-2xl text-on-surface/70">{routeResult.route_summary}</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <Pill tone="sage">{routeResult.source_used}</Pill>
+                {routeResult.source_used === 'caremaze_synthetic_preview' && (
+                  <span className="text-xs font-medium text-orange-400 uppercase tracking-wider">
+                    Demo Data Only
+                  </span>
+                )}
                 {routeResult.distance_km !== null ? <Pill>{routeResult.distance_km} km</Pill> : null}
                 {routeResult.estimated_minutes !== null ? <Pill tone="sand">{routeResult.estimated_minutes} min</Pill> : null}
               </div>

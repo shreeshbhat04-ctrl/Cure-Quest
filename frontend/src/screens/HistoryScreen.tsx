@@ -130,54 +130,59 @@ export function HistoryScreen({
                     ) : null}
                   </div>
                   <p className="mt-4 text-sm leading-7 text-on-surface/65">{item.summary}</p>
-                  {'snapshot' in item && item.snapshot ? (
-                    <div className="mt-5">
-                      <button
-                        onClick={() => setExpandedSnapshotId((current) => (current === item.id ? null : item.id))}
-                        className="flex items-center gap-2 text-sm text-primary hover:underline"
-                      >
-                        <ChevronDown className={`h-4 w-4 transition-transform ${expandedSnapshotId === item.id ? 'rotate-180' : ''}`} />
-                        <span>{expandedSnapshotId === item.id ? 'Hide snapshot details' : 'Show snapshot details'}</span>
-                      </button>
-                      {expandedSnapshotId === item.id ? (
-                        <div className="mt-4 grid gap-4 rounded-[1.25rem] bg-surface-container-lowest/35 p-5">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Profile</p>
-                            <p className="mt-2 text-sm text-on-surface/65">
-                              {item.snapshot.profile?.full_name ? String(item.snapshot.profile.full_name) : 'Profile context saved.'}
-                              {item.snapshot.profile?.summary ? ` • ${String(item.snapshot.profile.summary)}` : ''}
-                            </p>
+                  {'snapshot' in item && item.snapshot ? (() => {
+                    const snap: any = item.snapshot;
+                    return (
+                      <div className="mt-5">
+                        <button
+                          type="button"
+                          aria-expanded={expandedSnapshotId === item.id}
+                          onClick={() => setExpandedSnapshotId((current) => (current === item.id ? null : item.id))}
+                          className="flex items-center gap-2 text-sm text-primary hover:underline"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${expandedSnapshotId === item.id ? 'rotate-180' : ''}`} />
+                          <span>{expandedSnapshotId === item.id ? 'Hide snapshot details' : 'Show snapshot details'}</span>
+                        </button>
+                        {expandedSnapshotId === item.id ? (
+                          <div className="mt-4 grid gap-4 rounded-[1.25rem] bg-surface-container-lowest/35 p-5">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Profile</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.profile?.full_name ? String(snap.profile.full_name) : 'Profile context saved.'}
+                                {snap.profile?.summary ? ` • ${String(snap.profile.summary)}` : ''}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Conditions</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.conditions?.length
+                                  ? snap.conditions.map((entry: any) => String(entry.name ?? entry.condition_type ?? 'Condition')).join(', ')
+                                  : 'No condition records stored in this snapshot.'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Prescriptions</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.prescriptions?.length
+                                  ? snap.prescriptions.map((entry: any) => String(entry.medication_name ?? 'Prescription')).join(', ')
+                                  : 'No prescription records stored in this snapshot.'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Vitals</p>
+                              <p className="mt-2 text-sm text-on-surface/65">
+                                {snap.vitals?.length
+                                  ? snap.vitals
+                                      .map((entry: any) => String(entry.blood_pressure ?? entry.weight_kg ?? entry.heart_rate_bpm ?? 'Vital'))
+                                      .join(', ')
+                                  : 'No vitals captured with this snapshot.'}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Conditions</p>
-                            <p className="mt-2 text-sm text-on-surface/65">
-                              {item.snapshot.conditions.length
-                                ? item.snapshot.conditions.map((entry) => String(entry.name ?? entry.condition_type ?? 'Condition')).join(', ')
-                                : 'No condition records stored in this snapshot.'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Prescriptions</p>
-                            <p className="mt-2 text-sm text-on-surface/65">
-                              {item.snapshot.prescriptions.length
-                                ? item.snapshot.prescriptions.map((entry) => String(entry.medication_name ?? 'Prescription')).join(', ')
-                                : 'No prescription records stored in this snapshot.'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.2em] text-on-surface/40">Vitals</p>
-                            <p className="mt-2 text-sm text-on-surface/65">
-                              {item.snapshot.vitals.length
-                                ? item.snapshot.vitals
-                                    .map((entry) => String(entry.blood_pressure ?? entry.weight_kg ?? entry.heart_rate_bpm ?? 'Vital'))
-                                    .join(', ')
-                                : 'No vitals captured with this snapshot.'}
-                            </p>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
+                        ) : null}
+                      </div>
+                    );
+                  })() : null}
                 </SoftCard>
               </motion.div>
             </div>

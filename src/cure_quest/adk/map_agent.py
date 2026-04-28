@@ -1,10 +1,12 @@
-"""Map Agent – handles Care Maze location search and route generation.
+"""Map Agent - handles Care Maze location search and route generation.
 
 Uses the Google Maps MCP server to find nearby pharmacies, clinics, hospitals,
 and labs, and to generate navigation routes for patients.
 """
 
 import os
+from pathlib import Path
+import logging
 
 from google.adk.agents import LlmAgent
 from google.adk.tools.mcp_tool import McpToolset
@@ -14,10 +16,17 @@ from mcp import StdioServerParameters
 from cure_quest.config import get_settings
 
 settings = get_settings()
+repo_root = Path(__file__).resolve().parents[3]
+
+if not os.environ.get("GOOGLE_MAPS_API_KEY"):
+    logger = logging.getLogger(__name__)
+    logger.error("GOOGLE_MAPS_API_KEY is missing from environment. Map agent MCP server will fail.")
+    raise ValueError("GOOGLE_MAPS_API_KEY is missing from environment")
 
 _google_maps_params = StdioServerParameters(
-    command="npx",
-    args=["-y", "@modelcontextprotocol/server-google-maps"],
+    command=settings.google_maps_mcp_command,
+    args=settings.google_maps_mcp_args,
+    cwd=str(repo_root),
     env=os.environ.copy(),
 )
 

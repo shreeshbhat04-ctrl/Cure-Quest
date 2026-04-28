@@ -84,14 +84,14 @@ export function Profile({
   const [vitalState, setVitalState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
-    if (workspace?.profile) {
+    if (workspace?.profile && !profile) {
       setProfile(workspace.profile);
       setForm(profileToForm(workspace.profile));
     }
     if (workspace?.vitals) {
       setVitals(workspace.vitals);
     }
-  }, [workspace]);
+  }, [workspace, profile]);
 
   useEffect(() => {
     let active = true;
@@ -140,13 +140,22 @@ export function Profile({
   const handleSaveProfile = async () => {
     try {
       setSaveState('saving');
+      
+      const parsedHeight = form.height_cm ? parseFloat(form.height_cm) : null;
+      const parsedWeight = form.weight_kg ? parseFloat(form.weight_kg) : null;
+      
+      if ((form.height_cm && !Number.isFinite(parsedHeight)) || 
+          (form.weight_kg && !Number.isFinite(parsedWeight))) {
+        throw new Error('Please enter valid numbers for height and weight.');
+      }
+
       const updated = await updatePatientProfile(patientId, {
         full_name: form.full_name || null,
         preferred_language: form.preferred_language || null,
         date_of_birth: form.date_of_birth || null,
         summary: form.summary || null,
-        height_cm: form.height_cm ? Number(form.height_cm) : null,
-        weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+        height_cm: parsedHeight,
+        weight_kg: parsedWeight,
         blood_group: form.blood_group || null,
         allergies: form.allergies
           .split(',')
@@ -170,12 +179,25 @@ export function Profile({
   const handleAddVital = async () => {
     try {
       setVitalState('saving');
+      
+      const parsedHeartRate = vitalForm.heart_rate_bpm ? parseFloat(vitalForm.heart_rate_bpm) : null;
+      const parsedGlucose = vitalForm.blood_glucose_mg_dl ? parseFloat(vitalForm.blood_glucose_mg_dl) : null;
+      const parsedTemp = vitalForm.temperature_c ? parseFloat(vitalForm.temperature_c) : null;
+      const parsedWeight = vitalForm.weight_kg ? parseFloat(vitalForm.weight_kg) : null;
+
+      if ((vitalForm.heart_rate_bpm && !Number.isFinite(parsedHeartRate)) ||
+          (vitalForm.blood_glucose_mg_dl && !Number.isFinite(parsedGlucose)) ||
+          (vitalForm.temperature_c && !Number.isFinite(parsedTemp)) ||
+          (vitalForm.weight_kg && !Number.isFinite(parsedWeight))) {
+        throw new Error('Please enter valid numbers for vital metrics.');
+      }
+
       const created = await addPatientVital(patientId, {
         blood_pressure: vitalForm.blood_pressure || null,
-        heart_rate_bpm: vitalForm.heart_rate_bpm ? Number(vitalForm.heart_rate_bpm) : null,
-        blood_glucose_mg_dl: vitalForm.blood_glucose_mg_dl ? Number(vitalForm.blood_glucose_mg_dl) : null,
-        temperature_c: vitalForm.temperature_c ? Number(vitalForm.temperature_c) : null,
-        weight_kg: vitalForm.weight_kg ? Number(vitalForm.weight_kg) : null,
+        heart_rate_bpm: parsedHeartRate,
+        blood_glucose_mg_dl: parsedGlucose,
+        temperature_c: parsedTemp,
+        weight_kg: parsedWeight,
         source: 'manual_entry',
       });
       setVitals((current) => [created, ...current]);
@@ -261,11 +283,11 @@ export function Profile({
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Height (cm)</span>
-              <input value={form.height_cm} onChange={(event) => handleChange('height_cm', event.target.value)} className="input-shell w-full" inputMode="decimal" />
+              <input type="number" step="any" value={form.height_cm} onChange={(event) => handleChange('height_cm', event.target.value)} className="input-shell w-full" inputMode="decimal" />
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Weight (kg)</span>
-              <input value={form.weight_kg} onChange={(event) => handleChange('weight_kg', event.target.value)} className="input-shell w-full" inputMode="decimal" />
+              <input type="number" step="any" value={form.weight_kg} onChange={(event) => handleChange('weight_kg', event.target.value)} className="input-shell w-full" inputMode="decimal" />
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Blood group</span>
@@ -359,19 +381,19 @@ export function Profile({
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Heart rate (bpm)</span>
-              <input value={vitalForm.heart_rate_bpm} onChange={(event) => handleVitalChange('heart_rate_bpm', event.target.value)} className="input-shell w-full" inputMode="numeric" />
+              <input type="number" step="any" value={vitalForm.heart_rate_bpm} onChange={(event) => handleVitalChange('heart_rate_bpm', event.target.value)} className="input-shell w-full" inputMode="numeric" />
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Blood glucose (mg/dL)</span>
-              <input value={vitalForm.blood_glucose_mg_dl} onChange={(event) => handleVitalChange('blood_glucose_mg_dl', event.target.value)} className="input-shell w-full" inputMode="decimal" />
+              <input type="number" step="any" value={vitalForm.blood_glucose_mg_dl} onChange={(event) => handleVitalChange('blood_glucose_mg_dl', event.target.value)} className="input-shell w-full" inputMode="decimal" />
             </label>
             <label className="space-y-2">
               <span className="text-sm text-on-surface/60">Temperature (C)</span>
-              <input value={vitalForm.temperature_c} onChange={(event) => handleVitalChange('temperature_c', event.target.value)} className="input-shell w-full" inputMode="decimal" />
+              <input type="number" step="any" value={vitalForm.temperature_c} onChange={(event) => handleVitalChange('temperature_c', event.target.value)} className="input-shell w-full" inputMode="decimal" />
             </label>
             <label className="space-y-2 md:col-span-2">
               <span className="text-sm text-on-surface/60">Weight (kg)</span>
-              <input value={vitalForm.weight_kg} onChange={(event) => handleVitalChange('weight_kg', event.target.value)} className="input-shell w-full" inputMode="decimal" />
+              <input type="number" step="any" value={vitalForm.weight_kg} onChange={(event) => handleVitalChange('weight_kg', event.target.value)} className="input-shell w-full" inputMode="decimal" />
             </label>
           </div>
         </div>
