@@ -22,11 +22,23 @@ class RoutineTask:
     task_id: str
     name: str
     completed: bool
+    source: str = "Asana"
+    title: str | None = None
+    short_summary: str | None = None
+    full_details: str | None = None
+    due_at: str | None = None
     due_on: str | None = None
     notes: str | None = None
     assignee_name: str | None = None
     assignee_gid: str | None = None
     permalink_url: str | None = None
+
+
+@dataclass
+class AsanaWorkspaceUser:
+    gid: str
+    name: str
+    email: str | None = None
 
 
 class TicketingAdapter:
@@ -42,6 +54,9 @@ class TicketingAdapter:
         raise NotImplementedError
 
     def list_routine_tasks(self, assignee_gid: str | None = None) -> list[RoutineTask]:
+        raise NotImplementedError
+
+    def list_workspace_users(self, workspace_gid: str | None = None) -> list[dict[str, str | None]]:
         raise NotImplementedError
 
 
@@ -66,6 +81,10 @@ class MockTicketingAdapter(TicketingAdapter):
                 task_id="mock-1",
                 name="Morning medication reminder",
                 completed=False,
+                title="Morning medication reminder",
+                short_summary="Morning dose check-in.",
+                full_details="Check whether the patient took the morning dose.",
+                due_at=date.today().isoformat(),
                 due_on=date.today().isoformat(),
                 notes="Check whether the patient took the morning dose.",
                 assignee_name="Care Coordinator",
@@ -76,12 +95,26 @@ class MockTicketingAdapter(TicketingAdapter):
                 task_id="mock-2",
                 name="Follow-up symptom check",
                 completed=False,
+                title="Follow-up symptom check",
+                short_summary="Brief symptom follow-up is due today.",
+                full_details="Ask how the patient is feeling today.",
+                due_at=date.today().isoformat(),
                 due_on=date.today().isoformat(),
                 notes="Ask how the patient is feeling today.",
                 assignee_name="Care Coordinator",
                 assignee_gid=None,
                 permalink_url=None,
             ),
+        ]
+
+    def list_workspace_users(self, workspace_gid: str | None = None) -> list[dict[str, str | None]]:
+        _ = workspace_gid
+        return [
+            {
+                "gid": "mock-doctor-1",
+                "name": "Dr surgeon",
+                "email": "doctor@example.com",
+            }
         ]
 
 
@@ -186,6 +219,10 @@ class AsanaTicketingAdapter(TicketingAdapter):
                     task_id=item["gid"],
                     name=item.get("name", ""),
                     completed=item.get("completed", False),
+                    title=item.get("name", ""),
+                    short_summary=_short_summary(item.get("notes"), item.get("name", "")),
+                    full_details=item.get("notes"),
+                    due_at=item.get("due_on"),
                     due_on=item.get("due_on"),
                     notes=item.get("notes"),
                     assignee_name=(item.get("assignee") or {}).get("name"),
@@ -202,9 +239,53 @@ class AsanaTicketingAdapter(TicketingAdapter):
             logger.warning("Asana routine fetch failed, falling back to mock tasks: %s", error)
             return self._mock.list_routine_tasks(assignee_gid=assignee_gid)
 
+    def list_workspace_users(self, workspace_gid: str | None = None) -> list[dict[str, str | None]]:
+        if not self.settings.asana_access_token:
+            raise ValueError("ASANA_ACCESS_TOKEN must be configured.")
+
+        resolved_workspace_gid = workspace_gid or self.settings.asana_workspace_gid
+        if not resolved_workspace_gid:
+            raise ValueError("ASANA_WORKSPACE_GID must be configured or provided.")
+
+        headers = {
+            "Authorization": f"Bearer {self.settings.asana_access_token}",
+            "Accept": "application/json",
+        }
+        params = {"opt_fields": "name,email"}
+
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                response = client.get(
+                    f"{self.base_url}/workspaces/{resolved_workspace_gid}/users",
+                    params=params,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                payload = response.json()["data"]
+            return [
+                AsanaWorkspaceUser(
+                    gid=item["gid"],
+                    name=item.get("name", ""),
+                    email=item.get("email"),
+                ).__dict__
+                for item in payload
+            ]
+        except Exception as error:
+            logger.exception("Asana workspace user lookup failed: %s", error)
+            raise
+
 
 def build_ticketing_adapter() -> TicketingAdapter:
     settings = get_settings()
     if settings.asana_access_token and settings.asana_project_gid:
         return AsanaTicketingAdapter()
     return MockTicketingAdapter()
+
+
+def _short_summary(notes: str | None, fallback: str, max_length: int = 96) -> str:
+    if notes:
+        normalized = " ".join(notes.split())
+        if len(normalized) <= max_length:
+            return normalized
+        return normalized[: max_length - 3].rstrip() + "..."
+    return fallback

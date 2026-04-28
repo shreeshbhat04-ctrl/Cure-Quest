@@ -1,5 +1,6 @@
 import re
 import json
+from html import escape
 from datetime import datetime
 from datetime import timedelta
 
@@ -17,7 +18,7 @@ from cure_quest.agents.questioner import QuestionerAgent
 from cure_quest.agents.routine import RoutineAgent
 from cure_quest.agents.temporal_memory import TemporalMemoryAgent
 from cure_quest.adapters.brain import BrainGateway, build_brain_gateway
-from cure_quest.db.models import Doctor, Patient, PatientDoctorMap, PendingAction, Prescription
+from cure_quest.db.models import Doctor, Notification, Patient, PatientDoctorMap, PendingAction, Prescription
 from cure_quest.services.google_workspace import credentials_from_tokens
 from cure_quest.services.model_routing import ModelRoutingService
 
@@ -265,39 +266,24 @@ class Orchestrator:
                     "external_ticket_url": case.external_ticket_url,
                 }
             elif pending.action_type == "send_email":
-                patient = db.scalar(select(Patient).where(Patient.id == pending.patient_id))
-                if not patient or not patient.google_access_token:
-                    raise ValueError("Gmail is not connected for this patient.")
-
                 target_email = chosen_value
+                doctor_id = None
+                if chosen_option and chosen_option.get("doctor_id"):
+                    doctor_id = int(chosen_option["doctor_id"])
                 if chosen_option and chosen_option.get("value") not in (None, "custom"):
                     target_email = str(chosen_option["value"])
-                if "@" not in target_email:
-                    raise ValueError("Please provide a valid email address.")
 
-                creds = credentials_from_tokens(
-                    access_token=patient.google_access_token,
-                    refresh_token=patient.google_refresh_token,
-                )
-                subject = f"Cure-Quest care summary for patient {pending.patient_id}"
-                body_html = self._build_professional_care_email(
+                email_result = self.send_doctor_aware_care_email(
                     db=db,
                     patient_id=pending.patient_id,
-                    patient_name=patient.full_name,
-                    patient_summary=patient.summary,
                     message=payload.get("message") or "Care summary requested from conversation.",
-                )
-                email_result = self.integrations.send_care_email(
-                    to=target_email,
-                    subject=subject,
-                    body_html=body_html,
-                    credentials=creds,
+                    doctor_id=doctor_id,
+                    to_email=target_email,
                 )
                 if not email_result.get("sent"):
                     raise ValueError(email_result.get("error") or "Email send failed")
                 result = {
-                    "message": f"Care summary email sent to {target_email}.",
-                    "recipient": target_email,
+                    "message": f"Care summary email sent to {email_result['recipient']}.",
                     **email_result,
                 }
             elif pending.action_type == "calendar_followup":
@@ -500,39 +486,117 @@ class Orchestrator:
                 ],
             }
 
-        target_email = target_email_match.group(0)
-        creds = credentials_from_tokens(
-            access_token=patient.google_access_token,
-            refresh_token=patient.google_refresh_token,
-        )
-        subject = f"Cure-Quest care summary for {patient_name or f'patient {patient_id}'}"
-        body_html = self._build_professional_care_email(
+        email_result = self.send_doctor_aware_care_email(
             db=db,
             patient_id=patient_id,
-            patient_name=patient_name,
-            patient_summary=patient.summary,
             message=message,
+            to_email=target_email_match.group(0),
         )
-        result = self.integrations.send_care_email(
-            to=target_email,
-            subject=subject,
-            body_html=body_html,
-            credentials=creds,
-        )
-        if result.get("sent"):
+        if email_result.get("sent"):
             return {
-                "message": f"I sent the care summary email to {target_email}.",
+                "message": f"I sent the care summary email to {email_result['recipient']}.",
                 "reason": "The message requested sending a care summary email.",
                 "execution_plan": [
                     "Send the care summary through the connected Gmail integration.",
                 ],
             }
         return {
-            "message": f"I tried to send the email to {target_email}, but it failed: {result.get('error') or 'unknown error'}.",
+            "message": (
+                f"I tried to send the email to {email_result['recipient']}, "
+                f"but it failed: {email_result.get('error') or 'unknown error'}."
+            ),
             "reason": "The message requested sending a care summary email.",
             "execution_plan": [
                 "Attempt to send the care summary through the connected Gmail integration.",
             ],
+        }
+
+    def send_doctor_aware_care_email(
+        self,
+        db: Session,
+        patient_id: int,
+        message: str,
+        doctor_id: int | None = None,
+        to_email: str | None = None,
+        subject: str | None = None,
+        body_html: str | None = None,
+    ) -> dict:
+        patient = db.scalar(select(Patient).where(Patient.id == patient_id))
+        if not patient or not patient.google_access_token:
+            raise ValueError("Gmail is not connected for this patient.")
+
+        doctor = None
+        if doctor_id is not None:
+            # Verify the doctor is mapped to this patient
+            mapping = db.scalar(
+                select(PatientDoctorMap).where(
+                    PatientDoctorMap.patient_id == patient_id,
+                    PatientDoctorMap.doctor_id == doctor_id
+                )
+            )
+            if mapping is None:
+                raise ValueError("Selected doctor is not associated with this patient.")
+
+            doctor = db.scalar(select(Doctor).where(Doctor.id == doctor_id))
+            if doctor is None:
+                raise ValueError("Selected doctor was not found.")
+            if not to_email:
+                to_email = doctor.email
+            if not to_email:
+                raise ValueError("Selected doctor does not have an email address.")
+
+        resolved_email = (to_email or "").strip()
+        if "@" not in resolved_email:
+            raise ValueError("Please provide a valid email address.")
+
+        patient_name = patient.full_name or f"patient {patient_id}"
+        creds = credentials_from_tokens(
+            access_token=patient.google_access_token,
+            refresh_token=patient.google_refresh_token,
+        )
+        resolved_subject = subject or f"Cure-Quest care summary for {patient_name}"
+        resolved_body_html = body_html or self._build_professional_care_email(
+            db=db,
+            patient_id=patient_id,
+            patient_name=patient_name,
+            patient_summary=patient.summary,
+            message=message,
+            doctor_name=None if doctor is None else doctor.full_name,
+        )
+        email_result = self.integrations.send_care_email(
+            to=resolved_email,
+            subject=resolved_subject,
+            body_html=resolved_body_html,
+            credentials=creds,
+        )
+
+        notification_status = "sent" if email_result.get("sent") else "failed"
+        recipient_summary = resolved_email
+        if doctor is not None:
+            recipient_summary = f"{doctor.full_name} <{resolved_email}>"
+        notification = Notification(
+            patient_id=patient_id,
+            channel="gmail",
+            message_type="care_summary_email",
+            body=(
+                f"Care summary email to {recipient_summary}. "
+                f"Message ID: {email_result.get('message_id') or 'unavailable'}."
+            ),
+            delivery_status=notification_status,
+        )
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+
+        return {
+            "sent": bool(email_result.get("sent")),
+            "message_id": email_result.get("message_id"),
+            "error": email_result.get("error"),
+            "recipient": resolved_email,
+            "doctor_id": None if doctor is None else doctor.id,
+            "doctor_name": None if doctor is None else doctor.full_name,
+            "doctor_email": None if doctor is None else doctor.email,
+            "notification_id": notification.id,
         }
 
     def _build_professional_care_email(
@@ -542,29 +606,32 @@ class Orchestrator:
         patient_name: str | None,
         patient_summary: str | None,
         message: str,
+        doctor_name: str | None = None,
     ) -> str:
         conditions = self.temporal_memory.get_relevant_conditions(patient_id)
-        condition_names = [item.name for item in conditions if item.name][:3]
+        condition_names = [escape(item.name) for item in conditions if item.name][:3]
         recent_prescriptions = db.scalars(
             select(Prescription)
             .where(Prescription.patient_id == patient_id)
             .order_by(Prescription.created_at.desc())
         ).all()[:3]
 
-        clean_request = re.sub(r"[\w.\-+]+@[\w.\-]+\.\w+", "[recipient]", message).strip()
-        recipient_name = patient_name or f"patient {patient_id}"
+        clean_request = escape(re.sub(r"[\w.\-+]+@[\w.\-]+\.\w+", "[recipient]", message).strip())
+        patient_display_name = escape(patient_name or f"patient {patient_id}")
+        doctor_display_name = escape(doctor_name or "Doctor")
+        escaped_patient_summary = escape(patient_summary) if patient_summary else None
         sent_on = datetime.now().strftime("%Y-%m-%d")
 
         sections: list[str] = [
-            "<p>Respected Doctor,</p>",
+            f"<p>Respected {doctor_display_name},</p>",
             (
-                f"<p>Please find a brief care update for <strong>{recipient_name}</strong> "
+                f"<p>Please find a brief care update for <strong>{patient_display_name}</strong> "
                 f"as of {sent_on}.</p>"
             ),
         ]
 
-        if patient_summary:
-            sections.append(f"<p><strong>Patient Summary:</strong> {patient_summary}</p>")
+        if escaped_patient_summary:
+            sections.append(f"<p><strong>Patient Summary:</strong> {escaped_patient_summary}</p>")
 
         if condition_names:
             sections.append(
@@ -575,10 +642,12 @@ class Orchestrator:
 
         if recent_prescriptions:
             medication_summary = ", ".join(
-                f"{item.medication_name}{f' {item.dosage}' if item.dosage else ''}".strip()
+                f"{escape(item.medication_name)}{f' {escape(item.dosage)}' if item.dosage else ''}".strip()
                 for item in recent_prescriptions
+                if item.medication_name
             )
-            sections.append(f"<p><strong>Recent Prescription History:</strong> {medication_summary}</p>")
+            if medication_summary:
+                sections.append(f"<p><strong>Recent Prescription History:</strong> {medication_summary}</p>")
 
         sections.append(f"<p><strong>Patient Request:</strong> {clean_request}</p>")
         sections.extend(
@@ -704,7 +773,12 @@ class Orchestrator:
 
     @staticmethod
     def _is_send_email_request(normalized: str) -> bool:
-        return ("send" in normalized or "email" in normalized) and ("@" in normalized or "mail to" in normalized)
+        return ("send" in normalized or "email" in normalized) and (
+            "@"
+            in normalized
+            or "mail to" in normalized
+            or "doctor" in normalized
+        )
 
     @staticmethod
     def _is_escalation_request(normalized: str) -> bool:
@@ -817,8 +891,8 @@ class Orchestrator:
             "agent_manifest": self.model_routing.get_model_manifest(),
             "trigger_manifest": {
                 "general_conversation": "Gemini 3.1 Flash handles supportive and everyday conversation.",
-                "medical_text_query": "MedGemma handles symptom, disease, medicine, and clinical text queries.",
-                "medical_image_upload": "MedSigLIP handles the uploaded image first, then MedGemma performs medical reasoning.",
+                "medical_text_query": "Gemini 3.1 Flash handles symptom, disease, medicine, and clinical text queries.",
+                "medical_image_upload": "MedSigLIP handles the uploaded image first, then Gemini 3.1 Flash performs medical reasoning.",
             },
         }
 

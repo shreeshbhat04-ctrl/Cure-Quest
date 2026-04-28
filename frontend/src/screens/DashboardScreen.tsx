@@ -1,8 +1,22 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { HeartPulse, ShieldCheck, Sparkles, Stethoscope, TimerReset } from 'lucide-react';
+import { ChevronDown, HeartPulse, Stethoscope, TimerReset } from 'lucide-react';
 import type { WorkspacePayload } from '../lib/api';
 import { ErrorState, LoadingState } from '../components/States';
 import { Pill, SectionShell } from '../components/ui';
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatRoutineDueDate(dueAt?: string | null, dueOn?: string | null) {
+  if (!dueAt) return dueOn;
+
+  if (DATE_ONLY_PATTERN.test(dueAt)) {
+    const [year, month, day] = dueAt.split('-').map(Number);
+    return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(year, month - 1, day));
+  }
+
+  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(dueAt));
+}
 
 export function DashboardScreen({
   workspace,
@@ -15,6 +29,7 @@ export function DashboardScreen({
   error: string | null;
   onRefresh: () => void;
 }) {
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   if (loading && !workspace) return <LoadingState />;
   if (error && !workspace) return <ErrorState message={error} onRetry={onRefresh} />;
   if (!workspace) return <ErrorState message="No workspace loaded." onRetry={onRefresh} />;
@@ -108,17 +123,49 @@ export function DashboardScreen({
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            {checkin.routine_tasks.slice(0, 4).map((task) => (
-              <div key={task.task_id} className="rounded-[1.25rem] bg-surface-container-lowest/30 p-6 glass-edge">
+            {checkin.routine_tasks.slice(0, 4).map((task) => {
+              const formattedDue = formatRoutineDueDate(task.due_at, task.due_on);
+
+              return (
+                <div key={task.task_id} className="rounded-[1.25rem] bg-surface-container-lowest/30 p-6 glass-edge">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[1.1rem] font-bold text-on-surface font-serif">{task.name}</p>
-                    <p className="mt-2 text-[0.95rem] leading-7 text-on-surface/60 font-sans">{task.notes || 'No extra notes attached to this rhythm yet.'}</p>
+                    <p className="text-[1.1rem] font-bold text-on-surface font-serif">{task.title || task.name}</p>
+                    <p className="mt-2 text-[0.95rem] leading-7 text-on-surface/60 font-sans">
+                      {task.short_summary || task.notes || 'No extra notes attached to this rhythm yet.'}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em] text-on-surface/40">
+                      <span>{task.source || 'Routine'}</span>
+                      {formattedDue ? <span>Due {formattedDue}</span> : null}
+                      {task.assignee_name ? <span>{task.assignee_name}</span> : null}
+                    </div>
                   </div>
                   <Pill tone={task.completed ? 'sage' : 'terracotta'}>{task.completed ? 'Done' : 'Open'}</Pill>
                 </div>
-              </div>
-            ))}
+                <div className="mt-4 flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    aria-expanded={expandedTaskId === task.task_id}
+                    onClick={() => setExpandedTaskId((current) => (current === task.task_id ? null : task.task_id))}
+                    className="flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${expandedTaskId === task.task_id ? 'rotate-180' : ''}`} />
+                    <span>{expandedTaskId === task.task_id ? 'Hide details' : 'View details'}</span>
+                  </button>
+                  {task.permalink_url ? (
+                    <a href={task.permalink_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                      Open source
+                    </a>
+                  ) : null}
+                </div>
+                {expandedTaskId === task.task_id ? (
+                  <div className="mt-4 rounded-[1rem] bg-surface-container-lowest/45 p-4 text-sm leading-7 text-on-surface/70">
+                    {task.full_details || task.notes || 'No additional detail was provided for this routine item.'}
+                  </div>
+                ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

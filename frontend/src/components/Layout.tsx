@@ -4,7 +4,7 @@ import { Bell, Brain, Grid2X2, Map, Pill, History, Stethoscope, Info, User, Shop
 import logo from '../assets/logo.png';
 
 
-type TabId = 'dashboard' | 'care-maze' | 'medications' | 'marketplace' | 'hitl' | 'history' | 'about';
+type TabId = 'dashboard' | 'care-maze' | 'medications' | 'marketplace' | 'hitl' | 'history' | 'profile' | 'about';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,6 +33,7 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'marketplace', icon: ShoppingCart, label: 'Market' },
     { id: 'hitl', icon: Stethoscope, label: 'Doctors' },
     { id: 'history', icon: History, label: 'History' },
+    { id: 'profile', icon: User, label: 'Profile' },
     { id: 'about', icon: Info, label: 'About' },
   ];
 
@@ -104,7 +105,13 @@ export const Layout: React.FC<LayoutProps> = ({
                   
                   <div className="w-full h-px bg-outline-variant/30 mb-2"></div>
                   
-                  <button className="w-full py-2 text-sm text-left text-on-surface/70 hover:text-primary transition-colors">
+                  <button
+                    onClick={() => {
+                      onTabChange('profile');
+                      setProfileOpen(false);
+                    }}
+                    className="w-full py-2 text-sm text-left text-on-surface/70 hover:text-primary transition-colors"
+                  >
                     Account Settings
                   </button>
                   {onRoleChange && (

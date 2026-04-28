@@ -28,6 +28,9 @@ class Patient(Base):
     prescriptions: Mapped[list["Prescription"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     doctor_mappings: Mapped[list["PatientDoctorMap"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    profile_details: Mapped[list["PatientProfileDetail"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    vitals: Mapped[list["PatientVital"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    condition_snapshots: Mapped[list["PatientConditionSnapshot"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
 
 
 class Doctor(Base):
@@ -105,6 +108,58 @@ class MedicationEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class PatientProfileDetail(Base):
+    __tablename__ = "patient_profile_details"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True)
+    height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    blood_group: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    allergies_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    emergency_contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    emergency_contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    primary_language: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="profile_details")
+
+
+class PatientVital(Base):
+    __tablename__ = "patient_vitals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    blood_pressure: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    heart_rate_bpm: Mapped[int | None] = mapped_column(nullable=True)
+    blood_glucose_mg_dl: Mapped[float | None] = mapped_column(Float, nullable=True)
+    temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="vitals")
+
+
+class PatientConditionSnapshot(Base):
+    __tablename__ = "patient_condition_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    snapshot_type: Mapped[str] = mapped_column(String(80), default="profile_update")
+    summary: Mapped[str] = mapped_column(Text)
+    profile_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conditions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prescriptions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    vitals_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_event_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source_event_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="condition_snapshots")
+
+
 class EscalationCase(Base):
     __tablename__ = "escalation_cases"
 
@@ -174,3 +229,30 @@ class PendingAction(Base):
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ChatThread(Base):
+    __tablename__ = "chat_threads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
+    subject: Mapped[str] = mapped_column(String(500), default="General consultation")
+    status: Mapped[str] = mapped_column(String(40), default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    messages: Mapped[list["ChatMessage"]] = relationship(back_populates="thread", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id"))
+    sender_role: Mapped[str] = mapped_column(String(40))
+    sender_display_name: Mapped[str] = mapped_column(String(255))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    thread: Mapped[ChatThread] = relationship(back_populates="messages")

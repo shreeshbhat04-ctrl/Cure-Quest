@@ -24,7 +24,7 @@ class DocumentAgent:
             "file_name": path.name,
             "file_path": str(path),
             "ocr_model": route["primary_model"],
-            "reasoning_model": route.get("secondary_model") or self.settings.medgemma_model_id,
+            "reasoning_model": route.get("secondary_model") or self.settings.gemini_fast_model_id,
             "support_model": route.get("support_model"),
             "storage_target": "google_drive",
             "ocr_strategy": "vision_first_then_structured_medical_reasoning" if route["route_type"] == "medical_image" else "text_first_then_structured_medical_reasoning",

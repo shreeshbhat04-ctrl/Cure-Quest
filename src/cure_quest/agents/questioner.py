@@ -48,7 +48,6 @@ class QuestionerAgent:
                     "label": f"{doctor.full_name} ({doctor.specialty or 'Doctor'})",
                     "value": str(doctor.id),
                     "doctor_id": doctor.id,
-                    "doctor_email": doctor.email,
                     "doctor_asana_gid": doctor.asana_user_gid,
                     "is_default": bool(mapping.is_default),
                 }
