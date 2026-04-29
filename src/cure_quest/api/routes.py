@@ -61,10 +61,6 @@ from cure_quest.api.models import (
     SaveDietRecipeResponse,
     SavedDietRecipesResponse,
     MarketIngredientResponse,
-    MedGemmaRequest,
-    MedGemmaResponse,
-    MedSigLIPClassificationRequest,
-    MedSigLIPClassificationResponse,
     NotifyRequest,
     NotifyResponse,
     OrchestrationManifestResponse,
@@ -1943,26 +1939,6 @@ def orchestration_routine_automation(patient_id: int, db: Session = Depends(get_
     result = orchestrator.run_routine_automation(db=db, patient_id=patient_id)
     return RoutineAutomationResponse(**result)
 
-
-@router.post("/medical-models/medgemma", response_model=MedGemmaResponse)
-def medgemma_run(payload: MedGemmaRequest) -> MedGemmaResponse:
-    result = orchestrator.run_medgemma(
-        patient_id=payload.patient_id,
-        prompt=payload.prompt,
-        image_path=payload.image_path,
-        max_new_tokens=payload.max_new_tokens,
-    )
-    return MedGemmaResponse(**result)
-
-
-@router.post("/medical-models/medsiglip/classify", response_model=MedSigLIPClassificationResponse)
-def medsiglip_classify(payload: MedSigLIPClassificationRequest) -> MedSigLIPClassificationResponse:
-    result = orchestrator.run_medsiglip_classification(
-        patient_id=payload.patient_id,
-        image_path=payload.image_path,
-        candidate_labels=payload.candidate_labels,
-    )
-    return MedSigLIPClassificationResponse(**result)
 
 
 @router.get("/orchestration/manifest/{patient_id}", response_model=OrchestrationManifestResponse)

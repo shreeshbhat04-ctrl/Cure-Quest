@@ -1,4 +1,4 @@
-from cure_quest.adapters.openfda import WikipediaAdapter
+from cure_quest.adapters.wikipedia import WikipediaAdapter
 from cure_quest.adapters.formulary import MockFormularyAdapter
 from cure_quest.api.models import AlternativeCandidate
 from cure_quest.services.brain import BrainCondition

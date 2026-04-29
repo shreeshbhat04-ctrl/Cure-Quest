@@ -671,37 +671,6 @@ class MedicalMemorySearchResponse(BaseModel):
     results: list[MedicalMemorySearchResult]
 
 
-class MedSigLIPClassificationRequest(BaseModel):
-    patient_id: int
-    image_path: str
-    candidate_labels: list[str]
-
-
-class MedSigLIPClassificationResponse(BaseModel):
-    patient_id: int
-    profile: dict | None = None
-    provider: str
-    model: str
-    image_path: str
-    candidate_labels: list[str]
-    result: list | dict
-
-
-class MedGemmaRequest(BaseModel):
-    patient_id: int
-    prompt: str
-    image_path: str | None = None
-    max_new_tokens: int = 128
-
-
-class MedGemmaResponse(BaseModel):
-    patient_id: int
-    profile: dict | None = None
-    provider: str
-    model: str
-    prompt: str
-    image_path: str | None = None
-    result: Any
 
 
 class DocumentFlowRequest(BaseModel):

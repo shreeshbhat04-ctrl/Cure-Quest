@@ -12,11 +12,10 @@ from cure_quest.adapters.calendar import GoogleCalendarAdapter
 from cure_quest.adapters.drive import GoogleDriveAdapter
 from cure_quest.adapters.gmail import GoogleGmailAdapter
 from cure_quest.adapters.medical_memory import MedicalMemoryAdapter
-from cure_quest.adapters.openfda import WikipediaAdapter
+from cure_quest.adapters.wikipedia import WikipediaAdapter
 from cure_quest.adapters.speech import GoogleSpeechAdapter
 from cure_quest.db.models import EscalationCase, Patient, Prescription
 from cure_quest.services.google_workspace import credentials_from_tokens
-from cure_quest.services.huggingface_medical import HuggingFaceMedicalService
 from cure_quest.services.image_classifier import ImageClassifierService, CATEGORY_FOLDER_MAP
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,6 @@ class IntegrationAgent:
         self.analytics = BigQueryAnalyticsAdapter()
         self.wikipedia = WikipediaAdapter()
         self.medical_memory = MedicalMemoryAdapter()
-        self.huggingface_medical = HuggingFaceMedicalService()
         self.image_classifier = ImageClassifierService()
         self.speech = GoogleSpeechAdapter()
 
@@ -487,13 +485,6 @@ class IntegrationAgent:
         content, modality = self.medical_memory.build_content_from_inputs(query_text=query_text, file_path=file_path)
         embedding_vector = None
         embedding_model = None
-        if use_live_embedding and self.huggingface_medical.is_configured():
-            if modality in {"image", "document"} and file_path:
-                embedded = self.huggingface_medical.medsiglip_embed(image_path=file_path)
-            else:
-                embedded = self.huggingface_medical.medsiglip_embed(text=content)
-            embedding_vector = embedded["embedding_vector"]
-            embedding_model = embedded["model"]
         memory, synced = self.medical_memory.store_memory(
             db=db,
             patient_id=patient_id,
@@ -539,19 +530,6 @@ class IntegrationAgent:
             "query_text": query_text,
             "results": results,
         }
-
-    def run_medgemma(self, prompt: str, image_path: str | None = None, max_new_tokens: int = 128) -> dict:
-        return self.huggingface_medical.medgemma_generate(
-            prompt=prompt,
-            image_path=image_path,
-            max_new_tokens=max_new_tokens,
-        )
-
-    def run_medsiglip_classification(self, image_path: str, candidate_labels: list[str]) -> dict:
-        return self.huggingface_medical.medsiglip_classify(
-            image_path=image_path,
-            candidate_labels=candidate_labels,
-        )
 
     def transcribe_audio(self, audio_bytes: bytes) -> dict:
         try:

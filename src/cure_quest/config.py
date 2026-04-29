@@ -47,17 +47,15 @@ class Settings(BaseSettings):
     bigquery_project_id: str | None = None
     bigquery_dataset_id: str = "cure_quest"
     bigquery_table_id: str = "integration_events"
-    openfda_api_key: str | None = None
+
     google_maps_api_key: str | None = None
     use_synthetic_maps: bool = False
-    medical_model_backend: Literal["placeholder", "huggingface", "vertex"] = "placeholder"
-    huggingface_hub_token: str | None = None
-    medsiglip_model_id: str = "google/medsiglip-448"
+
     medical_embedding_dimensions: int = 768
     medical_vector_table_name: str = "medical_memories_vector"
     gemini_fast_model_id: str = "gemini-3.1-flash-lite-preview"
     gemini_fast_fallback_model_ids: str = "gemini-2.5-flash,gemini-2.0-flash"
-    medgemma_model_id: str = "google/medgemma-2-9b"
+
     asana_access_token: str | None = None
     asana_project_gid: str | None = None
     asana_assignee_gid: str | None = None

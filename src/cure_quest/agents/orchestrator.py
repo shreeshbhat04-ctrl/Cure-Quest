@@ -899,23 +899,6 @@ class Orchestrator:
             **results,
         }
 
-    def run_medgemma(self, patient_id: int, prompt: str, image_path: str | None = None, max_new_tokens: int = 128) -> dict:
-        profile = self.brain_gateway.get_patient_profile(patient_id)
-        result = self.integrations.run_medgemma(prompt=prompt, image_path=image_path, max_new_tokens=max_new_tokens)
-        return {
-            "patient_id": patient_id,
-            "profile": None if profile is None else profile.to_dict(),
-            **result,
-        }
-
-    def run_medsiglip_classification(self, patient_id: int, image_path: str, candidate_labels: list[str]) -> dict:
-        profile = self.brain_gateway.get_patient_profile(patient_id)
-        result = self.integrations.run_medsiglip_classification(image_path=image_path, candidate_labels=candidate_labels)
-        return {
-            "patient_id": patient_id,
-            "profile": None if profile is None else profile.to_dict(),
-            **result,
-        }
 
     def get_orchestration_manifest(self, patient_id: int) -> dict:
         profile = self.brain_gateway.get_patient_profile(patient_id)

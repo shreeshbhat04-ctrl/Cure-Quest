@@ -80,17 +80,17 @@ export function AboutScreen({
             <h3 className="font-serif text-[1.35rem]">Response language</h3>
           </div>
           <p className="mt-3 text-[1.05rem]">{patient.preferred_language.toUpperCase()}</p>
-          <p className="mt-2 text-[0.92rem] leading-7 text-on-surface/60">The communication agent keeps the tone soft while switching between Gemini, MedGemma, and MedSigLIP where needed.</p>
+          <p className="mt-2 text-[0.92rem] leading-7 text-on-surface/60">The communication agent keeps the tone soft while using Gemini 3.1 Flash where needed.</p>
         </SoftCard>
       </div>
 
       <SoftCard className="bg-surface-container-low">
         <div className="flex items-center gap-3 text-tertiary">
           <Brain className="h-5 w-5" />
-          <h3 className="font-serif text-[1.35rem]">Vision Processing</h3>
+          <h3 className="font-serif text-[1.35rem]">AlloyDB & Gemini 3.1 Flash</h3>
         </div>
         <p className="mt-4 text-[0.92rem] leading-7 text-on-surface/60">
-          MedSigLIP handles the uploaded image first for classification and feature extraction, then Gemini 3.1 Flash performs advanced medical reasoning to generate clinical insights.
+          The platform uses AlloyDB for reliable data grounding and Gemini 3.1 Flash for fast, advanced medical reasoning, generating clinical insights and orchestrating workflows.
         </p>
       </SoftCard>
 
