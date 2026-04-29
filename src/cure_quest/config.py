@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     mcp_server_args: str = "-m cure_quest.mcp.server"
 
     @property
+    def medsiglip_model_id(self) -> str:
+        return self.adk_model
+
+    @property
+    def medgemma_model_id(self) -> str:
+        return self.gemini_fast_model_id
+
+    @property
     def mcp_server_arg_list(self) -> list[str]:
         return [part for part in self.mcp_server_args.split(" ") if part]
 

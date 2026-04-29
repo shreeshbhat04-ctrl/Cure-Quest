@@ -485,6 +485,30 @@ class IntegrationAgent:
         content, modality = self.medical_memory.build_content_from_inputs(query_text=query_text, file_path=file_path)
         embedding_vector = None
         embedding_model = None
+
+        if use_live_embedding and content:
+            try:
+                from google import genai
+                settings = self.drive.settings
+                if settings.google_genai_use_vertexai:
+                    client = genai.Client(
+                        vertexai=True,
+                        project=settings.google_cloud_project,
+                        location=settings.google_cloud_location,
+                    )
+                else:
+                    client = genai.Client(api_key=settings.google_api_key)
+
+                response = client.models.embed_content(
+                    model="text-embedding-004",
+                    contents=content,
+                )
+                if response and hasattr(response, "embeddings") and response.embeddings:
+                    embedding_vector = response.embeddings[0].values
+                    embedding_model = "text-embedding-004"
+            except Exception as err:
+                logger.error("Live embedding generation failed: %s", err)
+
         memory, synced = self.medical_memory.store_memory(
             db=db,
             patient_id=patient_id,

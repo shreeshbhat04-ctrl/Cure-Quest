@@ -59,7 +59,7 @@ class CommunicationsAgent:
             if profile:
                 system_instruction += f"\nThe patient's name is {profile.full_name}. Summary: {profile.summary}"
 
-            if route["primary_model"] == settings.medgemma_model_id:
+            if route["primary_model"] == settings.gemini_fast_model_id:
                 response_payload = self.medical_generation.medgemma_generate(prompt=message, max_new_tokens=220)
                 generated_message = self._extract_generated_text(response_payload.get("result"))
             else:

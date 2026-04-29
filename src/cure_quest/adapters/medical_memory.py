@@ -106,8 +106,8 @@ class MedicalMemoryAdapter:
 
     def _embedding_model_for_modality(self, modality: str) -> str:
         if modality in {"image", "document"}:
-            return self.settings.medsiglip_model_id
-        return f"{self.settings.medsiglip_model_id}:text"
+            return self.settings.adk_model
+        return f"{self.settings.adk_model}:text"
 
     def _build_placeholder_embedding(self, content: str, modality: str) -> list[float]:
         seed = f"{modality}:{content}".encode("utf-8")
