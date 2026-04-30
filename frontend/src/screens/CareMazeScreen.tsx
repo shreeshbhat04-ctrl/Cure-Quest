@@ -29,6 +29,21 @@ import { Pill, SectionShell, SoftCard } from '../components/ui';
 
 type BusyAction = 'maze' | 'calendar' | 'escalate' | 'location' | 'followup' | 'doctor-chat';
 
+const DEMO_BEATS = [
+  {
+    title: 'One patient, many specialists',
+    body: 'The demo follows a patient with epilepsy and atopic eczema who is now dealing with fever and back pain across multiple doctors.',
+  },
+  {
+    title: 'Symptoms stay attached to the record',
+    body: 'Uploads, prescriptions, and symptom images move through the same care path so the doctor sees the before and after context together.',
+  },
+  {
+    title: 'Nothing is left blank',
+    body: 'When live data is missing, the backend still returns a hardcoded preview so the presentation keeps moving instead of stopping on an empty state.',
+  },
+];
+
 function isValidHttpUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -66,6 +81,7 @@ export function CareMazeScreen({
   const [analyzing, setAnalyzing] = useState(false);
   const [visionResult, setVisionResult] = useState<VisionUploadAnalyzeResponse | null>(null);
   const busyActionRef = useRef<BusyAction | null>(null);
+  const isDemoSource = (sourceUsed?: string | null) => Boolean(sourceUsed && sourceUsed !== 'google_maps_places_text_search');
 
   if (loading && !workspace) return <LoadingState />;
   if (!workspace) {
@@ -295,6 +311,30 @@ export function CareMazeScreen({
         description="This view now pulls care destinations, route hints, live upload analysis, dietary support, and doctor escalation into one backend-driven care route."
       />
 
+      <SoftCard className="bg-surface-container-low">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl space-y-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-primary/75">Demo briefing</p>
+            <h2 className="font-serif text-3xl leading-tight">A presenter-friendly version of the care maze.</h2>
+            <p className="text-sm leading-7 text-on-surface/65">
+              This panel is intentionally dense so judges see the story immediately: cross-doctor care, medication overlap, symptom analysis, and a route to escalation without leaving the screen empty.
+            </p>
+          </div>
+          <div className="rounded-full bg-primary-fixed/45 px-4 py-2 text-sm font-medium text-primary">
+            Live demo mode
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          {DEMO_BEATS.map((beat) => (
+            <div key={beat.title} className="rounded-[1.4rem] bg-surface px-5 py-4">
+              <p className="font-serif text-[1.05rem] text-on-surface">{beat.title}</p>
+              <p className="mt-2 text-sm leading-7 text-on-surface/60">{beat.body}</p>
+            </div>
+          ))}
+        </div>
+      </SoftCard>
+
       <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SoftCard className="space-y-6">
           <div className="flex items-center justify-between gap-4">
@@ -330,7 +370,7 @@ export function CareMazeScreen({
             <button
               onClick={runMaze}
               disabled={isBusy}
-              className={`river-stone-btn bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-surface ${disabledButtonClass}`}
+              className={`river-stone-btn bg-linear-to-br from-primary to-primary-container px-6 py-4 text-surface ${disabledButtonClass}`}
             >
               {busyAction === 'maze' ? 'Mapping...' : 'Ask Agent to Map Route'}
             </button>
@@ -454,7 +494,7 @@ export function CareMazeScreen({
             </div>
 
             {previewUrl ? (
-              <div className="overflow-hidden rounded-[1.5rem] border border-outline-variant/30 bg-surface-container-low">
+              <div className="overflow-hidden rounded-3xl border border-outline-variant/30 bg-surface-container-low">
                 <img src={previewUrl} alt="Uploaded medical context" className="h-64 w-full object-contain bg-surface" />
                 <div className="px-5 py-3 text-sm text-on-surface/60">
                   <p className="font-medium text-on-surface/80">{selectedFile?.name}</p>
@@ -477,7 +517,7 @@ export function CareMazeScreen({
               </div>
             ) : visionResult ? (
               <div className="space-y-4">
-                <div className="rounded-[1.5rem] bg-primary-fixed/25 px-5 py-5">
+                <div className="rounded-3xl bg-primary-fixed/25 px-5 py-5">
                   <div className="mb-3 flex items-center gap-2 text-primary">
                     <CheckCircle2 className="h-5 w-5" />
                     <p className="font-medium">Vision workflow complete</p>
@@ -491,7 +531,7 @@ export function CareMazeScreen({
                   <p className="text-sm leading-7 text-on-surface/68">{visionResult.summary}</p>
                 </div>
 
-                <div className="rounded-[1.5rem] bg-surface-container-low px-5 py-4 space-y-3">
+                <div className="space-y-3 rounded-3xl bg-surface-container-low px-5 py-4">
                   <p className="text-sm uppercase tracking-[0.18em] text-secondary/70">Workflow output</p>
                   <p className="text-sm leading-7 text-on-surface/68">
                     Saved to Drive as{' '}
@@ -573,7 +613,7 @@ export function CareMazeScreen({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone="sage">{destinations.source_used}</Pill>
-                {destinations.source_used === 'caremaze_synthetic_preview' && (
+                  {isDemoSource(destinations.source_used) && (
                   <span className="text-xs font-medium text-orange-400 uppercase tracking-wider">
                     Demo Data Only
                   </span>
@@ -584,7 +624,7 @@ export function CareMazeScreen({
             <p className="text-sm leading-7 text-on-surface/65">{destinations.summary}</p>
             <div className="grid gap-4 lg:grid-cols-3">
               {destinations.destinations.map((destination, index) => (
-                <div key={destination.id ?? `${destination.name}-${destination.address}-${index}`} className="rounded-[1.5rem] bg-surface-container-low px-5 py-5">
+                <div key={destination.id ?? `${destination.name}-${destination.address}-${index}`} className="rounded-3xl bg-surface-container-low px-5 py-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-on-surface/82">{destination.name}</p>
@@ -617,7 +657,7 @@ export function CareMazeScreen({
               <p className="max-w-2xl text-on-surface/70">{routeResult.route_summary}</p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <Pill tone="sage">{routeResult.source_used}</Pill>
-                {routeResult.source_used === 'caremaze_synthetic_preview' && (
+                {isDemoSource(routeResult.source_used) && (
                   <span className="text-xs font-medium text-orange-400 uppercase tracking-wider">
                     Demo Data Only
                   </span>
@@ -626,7 +666,7 @@ export function CareMazeScreen({
                 {routeResult.estimated_minutes !== null ? <Pill tone="sand">{routeResult.estimated_minutes} min</Pill> : null}
               </div>
               {routeResult.map_query ? (
-                <div className="mt-6 h-[450px] w-full max-w-4xl overflow-hidden rounded-[1.5rem] border border-primary/10 bg-surface-container shadow-lg">
+                <div className="mt-6 h-112.5 w-full max-w-4xl overflow-hidden rounded-3xl border border-primary/10 bg-surface-container shadow-lg">
                   <iframe
                     title="Agent Care Route Map"
                     width="100%"
