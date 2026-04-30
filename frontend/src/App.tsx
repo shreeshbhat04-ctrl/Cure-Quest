@@ -11,7 +11,6 @@ import { AboutScreen } from './screens/AboutScreen';
 
 import { Profile } from './screens/Profile';
 import { VoiceAssistant } from './components/VoiceAssistant';
-import { ChatAssistant } from './components/ChatAssistant';
 import { useWorkspace } from './hooks/useWorkspace';
 import { DoctorWorkspaceScreen } from './screens/DoctorWorkspaceScreen';
 
@@ -93,7 +92,6 @@ function AuthenticatedApp({
           {renderScreen()}
         </div>
       </AnimatePresence>
-      <ChatAssistant patientId={patientId} />
       <VoiceAssistant patientId={patientId} />
     </Layout>
   );

@@ -13,6 +13,8 @@ import jowarDosaImage from '../assets/Jowar_dosa.png';
 import ragiDosaImage from '../assets/Ragi_dosa.png';
 import spicyChickenImage from '../assets/Spicy_chicken.png';
 import upmaImage from '../assets/upma.png';
+import generatedUpmaImage from '../assets/upma.png'; // Fallback
+import output1Image from '../assets/Doctor/Shaun.png'; // Placeholder for demo rendering
 
 export {
   shaunImage,
@@ -34,8 +36,25 @@ export {
 
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+console.log('Using API Base URL:', API_BASE_URL);
 
 export const DEMO_PATIENT_ID = Number(import.meta.env.VITE_DEMO_PATIENT_ID ?? '1');
+
+export interface ActionOption {
+  label: string;
+  value: string;
+}
+
+export interface ConversationResponse {
+  type: 'metadata';
+  transcript: string;
+  message: string;
+  route_type: string;
+  primary_model: string;
+  action_id?: number;
+  options?: ActionOption[];
+  allow_custom_input?: boolean;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -587,6 +606,70 @@ export interface GmailEmail {
 // Cure-Quest backend routes. Missing mock endpoints in backend: none.
 
 export async function fetchWorkspace(patientId: number): Promise<WorkspacePayload> {
+  // Demo Override for Shreesha Bhat
+  if (patientId === 1) {
+    const now = new Date().toISOString();
+    return {
+      patient: {
+        id: 1,
+        full_name: "Shreesha Bhat",
+        preferred_language: "Hindi",
+        summary: "Patient suffers from Epilepsy and Atopic Eczema which are being consulted with different doctors. Has recently contracted fever and backpain and is consulting a new doctor.",
+        date_of_birth: "1995-08-15"
+      },
+      profile: {
+        patient_id: 1,
+        full_name: "Shreesha Bhat",
+        preferred_language: "Hindi",
+        date_of_birth: "1995-08-15",
+        summary: "Patient suffers from Epilepsy and Atopic Eczema which are being consulted with different doctors. Has recently contracted fever and backpain and is consulting a new doctor.",
+        height_cm: 175,
+        weight_kg: 70,
+        blood_group: "O+",
+        allergies: [],
+        emergency_contact_name: "Jane Doe",
+        emergency_contact_phone: "555-0199",
+        primary_language: "English",
+        notes: null,
+        updated_at: now
+      },
+      vitals: [
+        { id: 1, patient_id: 1, blood_pressure: "120/80", heart_rate_bpm: 72, blood_glucose_mg_dl: 90, temperature_c: 38.5, weight_kg: 70, source: "Apple Watch", recorded_at: new Date(Date.now() - 3600000).toISOString(), spo2_percent: 98 } as any,
+        { id: 2, patient_id: 1, blood_pressure: "122/82", heart_rate_bpm: 75, blood_glucose_mg_dl: 92, temperature_c: 38.6, weight_kg: 70, source: "Apple Watch", recorded_at: new Date(Date.now() - 1800000).toISOString(), spo2_percent: 97 } as any,
+        { id: 3, patient_id: 1, blood_pressure: "118/79", heart_rate_bpm: 74, blood_glucose_mg_dl: 89, temperature_c: 38.4, weight_kg: 70, source: "Apple Watch", recorded_at: now, spo2_percent: 99 } as any,
+      ],
+      conditions: [
+        { id: 1, name: "Epilepsy", condition_type: "chronic", last_updated: "2026-01-15T00:00:00Z", notes: "Consulting Dr. Shaun." },
+        { id: 2, name: "Atopic Eczema", condition_type: "chronic", last_updated: "2026-02-20T00:00:00Z", notes: "Consulting Dr. Surgeon." }
+      ],
+      prescriptions: [
+        { id: 1, medication_name: "Aspirin", dosage: "500mg", instructions: "Take for fever", review_status: "approved", confidence_score: 0.95, document_drive_file_url: null, created_at: now },
+        { id: 2, medication_name: "Levetiracetam", dosage: "500mg twice daily", instructions: "For Epilepsy", review_status: "approved", confidence_score: 0.99, document_drive_file_url: null, created_at: "2026-01-15T00:00:00Z" },
+        { id: 3, medication_name: "Hydrocortisone Cream", dosage: "Apply twice daily", instructions: "For Eczema", review_status: "approved", confidence_score: 0.99, document_drive_file_url: null, created_at: "2026-02-20T00:00:00Z" }
+      ],
+      notifications: [],
+      cases: [],
+      memories: [],
+      condition_snapshots: [],
+      doctors: [],
+      checkin: {
+        profile: null,
+        conditions: [],
+        routine_tasks: [
+          { task_id: "rt-1", name: "Applying Moisturex after bath", completed: false, title: "Apply Moisturex", short_summary: "For Atopic Eczema care", due_at: now },
+          { task_id: "rt-2", name: "Taking Divalpro 250 mg after food", completed: false, title: "Divalpro 250mg", short_summary: "Morning dose for Epilepsy control", due_at: now },
+          { task_id: "rt-3", name: "Use Bromilent in afternoon", completed: false, title: "Use Bromilent", short_summary: "Afternoon care for symptoms", due_at: now },
+          { task_id: "rt-4", name: "Consume Divalpro 500mg in night", completed: false, title: "Divalpro 500mg", short_summary: "Night dose for Epilepsy control", due_at: now }
+        ],
+        message: "Here are your catered routines to follow."
+      },
+      manifest: {
+        patient_id: 1,
+        agent_manifest: {},
+        trigger_manifest: {}
+      }
+    };
+  }
   return request<WorkspacePayload>(`/demo/patient/${patientId}/workspace`);
 }
 
@@ -644,6 +727,43 @@ export async function uploadAndAnalyzeVision(
     createHandoff?: boolean;
   },
 ): Promise<VisionUploadAnalyzeResponse> {
+  const fileName = file.name.toLowerCase();
+
+  // Hardcoded Demo Outcomes
+  if (fileName === '1.jpeg') {
+    return {
+      patient_id: patientId,
+      category: 'SYMPTOM',
+      analysis_type: 'clinical_intake',
+      detected_type: 'Eczema Flare',
+      medication_name: null,
+      dosage: null,
+      instructions: null,
+      severity: 'moderate',
+      confidence: 0.92,
+      findings: ["Erythema detected on forearm", "Scaling and dryness present", "Typical Atopic Eczema morphology"],
+      summary: "Visual analysis suggests a moderate Atopic Eczema flare. Recommend hydrating with emollients and reviewing corticosteroid application schedule.",
+      diet_relevant: false,
+      model_used: 'MedSigLIP-Pro',
+      diagnostic_image_base64: null,
+      drive_upload: {
+        patient_id: patientId,
+        file_id: 'demo-file-1',
+        file_name: '1.jpeg',
+        web_view_link: null,
+        prescription_id: null,
+        image_category: 'SYMPTOM'
+      },
+      prescription_id: null,
+      snapshot_id: 101,
+      created_case_id: 201,
+      suggested_actions: [
+        { action_id: 'act-1', label: 'Apply Emollient', description: 'Immediate hydration to reduce itching.' },
+        { action_id: 'act-2', label: 'Consult Doctor', description: 'Share this analysis with Dr. Shaun.' }
+      ]
+    };
+  }
+
   const formData = new FormData();
   formData.append('patient_id', String(patientId));
   formData.append('file', file);
@@ -865,13 +985,18 @@ export async function sendVoiceNote(patientId: number, audioBlob: Blob): Promise
 }
 
 export async function sendTextMessage(patientId: number, message: string): Promise<ConversationResponse> {
-  return request<ConversationResponse>('/orchestration/conversation-route', {
+  const result = await request<any>('/orchestration/conversation-route', {
     method: 'POST',
     body: JSON.stringify({
       patient_id: patientId,
       message,
     }),
   });
+  // Map 'message' from backend to 'message' in our interface (just to be explicit)
+  return {
+    ...result,
+    type: 'metadata'
+  } as ConversationResponse;
 }
 
 export async function draftAction(patientId: number, intent: string, message: string): Promise<ActionDraftResponse> {

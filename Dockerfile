@@ -15,7 +15,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 
 RUN pip install --upgrade pip \
-    && pip install .
+    && pip install ".[hf]"
 
 EXPOSE 8080
 
