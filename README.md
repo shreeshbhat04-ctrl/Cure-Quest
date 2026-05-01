@@ -187,7 +187,7 @@ For detailed sequence diagrams, see [Architecture and Design](docs/ARCHITECTURE_
 flowchart LR
 
 %% ================= ENTRY =================
-LP[Landing Page]
+LP["Landing Page"]
 
 APP["/app"]
 DASH["/dashboard"]
@@ -207,69 +207,69 @@ LP --> HIST
 subgraph PJ[Patient Journey]
 
 DASH --> PROF["Profile (Vitals / Conditions / Prescriptions)"]
-DASH --> H1[History]
-H1 --> SNAP[Condition Snapshots (Accordion)]
-SNAP --> QRY[Agent History Query]
+DASH --> H1["History"]
+H1 --> SNAP["Condition Snapshots (Accordion)"]
+SNAP --> QRY["Agent History Query"]
 
-CARE --> MAPA[Map Agent]
+CARE --> MAPA["Map Agent"]
 MAPA --> MAPS["Nearby Pharmacy / Clinic / Hospital"]
 
-CARE --> UP[Upload Image]
-UP --> VA[Vision Agent]
+CARE --> UP["Upload Image"]
+UP --> VA["Vision Agent"]
 VA -->|classify| FOLLOW["Follow-up / Doctor Handoff / Chat"]
 
-MEDS --> SAFE[Drug Safety Check]
-SAFE --> GEM1[Gemini + AlloyDB]
+MEDS --> SAFE["Drug Safety Check"]
+SAFE --> GEM1["Gemini + AlloyDB"]
 
-MEDS --> RS[Recipe Studio]
-RS --> CUR[Curated Recipes]
-RS --> GEN[Generated Recipes]
-GEN --> MKT[Ingredient Marketplace]
+MEDS --> RS["Recipe Studio"]
+RS --> CUR["Curated Recipes"]
+RS --> GEN["Generated Recipes"]
+GEN --> MKT["Ingredient Marketplace"]
 
-MEDS --> DOCUP[Document Upload]
-DOCUP --> PRES[Prescription Scan]
-PRES --> EXT[Extracted Medication Context]
+MEDS --> DOCUP["Document Upload"]
+DOCUP --> PRES["Prescription Scan"]
+PRES --> EXT["Extracted Medication Context"]
 
 end
 
 %% ================= CONVERSATIONAL AI =================
 subgraph CAI[Conversational AI Journey]
 
-APP --> CHAT[Chat Assistant]
+APP --> CHAT["Chat Assistant"]
 CHAT --> INPUT["Text / Voice Input"]
-INPUT --> ORCH[Orchestrator]
-ORCH --> GEM2[Gemini 3.1 Flash]
+INPUT --> ORCH["Orchestrator"]
+ORCH --> GEM2["Gemini 3.1 Flash"]
 
-CHAT --> ACTION[Structured Action Draft]
-ACTION -->|confirm| CONFIRM[Action Confirm]
-CONFIRM --> EXEC[Execute]
+CHAT --> ACTION["Structured Action Draft"]
+ACTION -->|confirm| CONFIRM["Action Confirm"]
+CONFIRM --> EXEC["Execute"]
 
-EXEC --> ASANA[Asana]
-EXEC --> GMAIL[Gmail]
-EXEC --> CAL[Google Calendar]
+EXEC --> ASANA["Asana"]
+EXEC --> GMAIL["Gmail"]
+EXEC --> CAL["Google Calendar"]
 
-APP --> VOICE[Voice Assistant]
-VOICE --> STT[Speech-to-Text]
+APP --> VOICE["Voice Assistant"]
+VOICE --> STT["Speech-to-Text"]
 STT --> ORCH
-ORCH --> TTS[Text-to-Speech]
-TTS --> AUDIO[Audio Response]
+ORCH --> TTS["Text-to-Speech"]
+TTS --> AUDIO["Audio Response"]
 
 end
 
 %% ================= DOCTOR WORKSPACE =================
 subgraph DW[Doctor Workspace Journey]
 
-DOC --> QUEUE[Live Asana Task Queue]
-QUEUE -->|filter| TASKS[Tasks by Doctor GID]
+DOC --> QUEUE["Live Asana Task Queue"]
+QUEUE -->|filter| TASKS["Tasks by Doctor GID"]
 
-DOC --> OPEN[Open Task]
-OPEN --> ASANA2[Asana Permalink]
+DOC --> OPEN["Open Task"]
+OPEN --> ASANA2["Asana Permalink"]
 
-DOC --> RECORDS[Patient Records]
-RECORDS --> PROF2[Profile + Snapshots]
+DOC --> RECORDS["Patient Records"]
+RECORDS --> PROF2["Profile + Snapshots"]
 
-DOC --> CHATDOC[Doctor-Patient Chat]
-CHATDOC -->|poll| THREADS[Chat Threads]
+DOC --> CHATDOC["Doctor-Patient Chat"]
+CHATDOC -->|poll| THREADS["Chat Threads"]
 
 end
 
