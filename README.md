@@ -189,12 +189,12 @@ flowchart LR
 %% ================= ENTRY =================
 LP[Landing Page]
 
-APP[/app]
-DASH[/dashboard]
-CARE[/caremaze]
-MEDS[/meds]
-DOC[/doctor]
-HIST[/history]
+APP["/app"]
+DASH["/dashboard"]
+CARE["/caremaze"]
+MEDS["/meds"]
+DOC["/doctor"]
+HIST["/history"]
 
 LP --> APP
 LP --> DASH
@@ -236,7 +236,7 @@ end
 subgraph CAI[Conversational AI Journey]
 
 APP --> CHAT[Chat Assistant]
-CHAT --> INPUT[Text / Voice Input]
+CHAT --> INPUT["Text / Voice Input"]
 INPUT --> ORCH[Orchestrator]
 ORCH --> GEM2[Gemini 3.1 Flash]
 
