@@ -48,11 +48,9 @@ The demo walks through drug interaction questions, document uploads, doctor hand
 medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-> Note: HTML video tags may not render in some Markdown viewers (e.g., GitHub mobile or IDE previews). If the embedded video doesn't display, use the direct link below.
+> Note: HTML video tags are not supported in GitHub Markdown. Use the direct link below to view the demo.
 
 - [Working ADK demo video (mp4)](assets/Working_adk_demo.mp4)
-
-<video src="assets/Working_adk_demo.mp4" controls></video>
 
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
 ![OCR input sample](assets/Ocr_input%20(1).png)
