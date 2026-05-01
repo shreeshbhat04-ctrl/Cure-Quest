@@ -56,8 +56,8 @@ medication reminders, and Gmail-based care summaries.
 
 ## Quick Start
 ### Prerequisites
-- Python 3.10+ (3.12+ recommended)
-- Node.js `18+`
+- Python 3.10+ (pyproject.toml), 3.12+ recommended
+- Node.js 18+
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
 
@@ -116,7 +116,7 @@ The backend API is prepared for Cloud Run deployment with `Dockerfile`, `.docker
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
-| **Backend** | Python 3.10+ (3.12+ recommended), FastAPI, SQLAlchemy 2.0, Uvicorn |
+| **Backend** | Python 3.10+ (pyproject.toml), 3.12+ recommended; FastAPI, SQLAlchemy 2.0, Uvicorn |
 | **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
 | **Database** | Google Cloud AlloyDB (PostgreSQL-compatible), SQLite for local dev |
 | **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
