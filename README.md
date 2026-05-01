@@ -477,16 +477,16 @@ end
 
 %% ================= API =================
 subgraph API[API Layer]
-    API1[FastAPI receives request]
+    API1["FastAPI receives request"]
     PYD["Pydantic Validation<br/>(typed contracts + constraints)"]
-    RID[Request ID Injection]
-    ERR[Structured Error Response]
+    RID["Request ID Injection"]
+    ERR["Structured Error Response"]
 end
 
 %% ================= POLICY =================
 subgraph PG[Policy Gate]
-    DEC{Execution Policy Gate}
-    BLOCK[403 sandbox_blocked]
+    DEC{"Execution Policy Gate"}
+    BLOCK["403 sandbox_blocked"]
 end
 
 %% ================= PROCESSING =================
@@ -498,17 +498,17 @@ end
 
 %% ================= EXTERNAL =================
 subgraph EXT[External Services]
-    GM[Gmail Adapter]
-    GD[Google Drive Adapter]
-    AS[Asana Adapter]
-    MAP[MCP Google Maps]
+    GM["Gmail Adapter"]
+    GD["Google Drive Adapter"]
+    AS["Asana Adapter"]
+    MAP["MCP Google Maps"]
 end
 
 %% ================= LOCAL =================
 subgraph LA[Local Analytics]
-    FE[Frontend Renderer]
+    FE["Frontend Renderer"]
     LS[(localStorage)]
-    ADMIN[Trend View (Local Only)]
+    ADMIN["Trend View (Local Only)"]
 end
 
 %% ================= FLOW =================
@@ -528,19 +528,19 @@ PROC --> GD
 PROC --> AS
 PROC --> MAP
 
-PROC --> RESP[JSON Response]
+PROC --> RESP["JSON Response"]
 RESP --> FE
 
 FE --> LS
 LS --> ADMIN
 
 %% ================= TRUST ANNOTATIONS =================
-PYD --- NOTE1[Request ID injected]
-DB --- NOTE2[PHI boundary]
-GM --- NOTE3[Scoped OAuth only]
-GD --- NOTE4[Scoped OAuth only]
-MAP --- NOTE5[No PII forwarded]
-LS --- NOTE6[Local boundary]
+PYD --- NOTE1["Request ID injected"]
+DB --- NOTE2["PHI boundary"]
+GM --- NOTE3["Scoped OAuth only"]
+GD --- NOTE4["Scoped OAuth only"]
+MAP --- NOTE5["No PII forwarded"]
+LS --- NOTE6["Local boundary"]
 
 %% ================= STYLING =================
 classDef client fill:#1a73e8,color:#fff,stroke:#0b57d0;
