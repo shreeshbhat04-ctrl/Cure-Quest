@@ -48,7 +48,7 @@ The demo walks through drug interaction questions, document uploads, doctor hand
 medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-- [Working ADK demo video (mp4)](assets/Working_adk_demo.mp4)
+- [ADK demo video (mp4)](assets/Working_adk_demo.mp4)
 
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
 ![OCR input sample](assets/Ocr_input%20(1).png)
