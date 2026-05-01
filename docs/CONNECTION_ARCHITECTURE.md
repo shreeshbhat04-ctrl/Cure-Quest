@@ -4,7 +4,6 @@ This document focuses on infrastructure and external connection wiring for Cure-
 
 Out of scope for this phase:
 
-- multimodal model integration
 - agent orchestration logic
 - agent trigger rules
 - workflow automation depth
@@ -94,17 +93,17 @@ Current implementation:
 - routes live under `src/cure_quest/api`
 - database bootstraps during app startup
 
-Required local connection:
-
 - database through `DATABASE_URL`
+- Google Workspace (Drive, Gmail, Calendar)
+- Asana (Ticketing/Escalation)
+- Gemini 3.1 Flash (Reasoning)
+- MedSigLIP (Vision/Imaging)
 
 Future external connections:
 
-- frontend client
-- auth provider
-- task/ticket system
-- notification provider
-- EHR/FHIR integration
+- Auth provider (IdP)
+- EHR / FHIR integration (Epic, Cerner)
+- Insurance Formulary APIs
 
 ### Google ADK web server
 
@@ -141,10 +140,10 @@ Current implementation:
 - served by `python -m cure_quest.mcp.server`
 - exposes deterministic tools and DB-backed brain tools
 
-Current tool groups:
-
 - utility tools: `ping`, `check_emergency`, `patient_context_summary`
-- brain tools: `brain_healthcheck`, `brain_get_patient_profile`, `brain_get_relevant_conditions`
+- brain tools: `brain_get_patient_profile`, `brain_get_relevant_conditions`
+- recipe tools: `recipe_lookup`, `dietary_safety_check`
+- workspace tools: `create_asana_task`, `send_gmail_summary`
 
 Required external connections:
 
@@ -181,12 +180,14 @@ Target production-like path:
 
 Current DB entities:
 
-- `patients`
-- `chronic_conditions`
-- `prescriptions`
-- `medication_events`
-- `escalation_cases`
-- `notifications`
+- `patients` (vitals, conditions, bio)
+- `chronic_conditions` (symptoms, severity)
+- `prescriptions` (dosage, timing)
+- `medication_events` (adherence logs)
+- `escalation_cases` (HITL status)
+- `notifications` (alert history)
+- `recipes` (condition-aware ingredients)
+- `health_connect_sync` (wearable logs)
 
 ## 4. Recommended connection sequence
 
@@ -240,42 +241,28 @@ Recommended local progression:
 
 Treat these as separate workstreams after API, ADK, MCP, and AlloyDB are stable.
 
-### Notifications
-
-Candidate connections:
-
-- Gmail API
-- SendGrid
-- Twilio
-- Firebase messaging
+### Notifications / Summaries
 
 Current state:
-
-- mock adapter only
+- **Gmail API**: Integrated for daily care summaries.
+- **Push Notifications**: Mock implementation only.
 
 ### Doctor review / tickets
 
-Candidate connections:
+Current state:
+- **Asana**: Integrated for clinician task escalation.
+- **HITL Flow**: Structured data packets produced for doctor review.
 
-- Asana
-- Jira
-- Linear
+### Pharmacy & Location
 
 Current state:
+- **MCP Google Maps**: Integrated for nearby pharmacy/clinic lookup.
 
-- mock ticket adapter only
-
-### Pharmacy inventory
-
-Candidate connections:
-
-- custom MCP server
-- mock HTTP service
-- partner pharmacy API
+### Health Data
 
 Current state:
-
-- mock formulary adapter only
+- **HealthConnect**: Integrated for Android/Watch vitals sync.
+- **BigQuery**: Wired for clinical audit trails and analytics.
 
 ### EHR / FHIR
 

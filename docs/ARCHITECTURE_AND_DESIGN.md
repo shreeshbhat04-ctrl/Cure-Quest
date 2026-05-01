@@ -75,13 +75,22 @@ graph TD
         ModelRouter[Model Routing Service]
         CommAgent[Communications Agent]
         IntegAgent[Integrations Agent]
+        HITLAgent[HITL Agent]
+    end
+
+    %% Tool & Data Boundary
+    subgraph MCPBoundary [MCP Tool Layer]
+        MCPServer[Local MCP Server]
+        GoogleMaps[MCP Google Maps]
     end
 
     %% Data & External Services Layer
     subgraph ExternalServices [External Integrations and Data]
-        Brain[(AlloyDB or Postgres via Brain Gateway)]
+        Brain[(AlloyDB Patient Brain)]
         Speech[Google Cloud STT and TTS]
-        Drive[Google Workspace Drive and Calendar]
+        Workspace[Google Workspace: Drive, Gmail, Cal]
+        Asana[Asana Task Escalation]
+        HealthConnect[Android HealthConnect]
         BigQuery[(BigQuery Analytics)]
         Gemini[Gemini 3.1 Flash]
     end
@@ -90,36 +99,35 @@ graph TD
     subgraph ADKAgents [ADK Sub-Agents]
         VisionAgt[Vision Agent]
         RecipeAgt[Recipe Agent]
-        CommAgtADK[Communication Agent]
         QuestAgt[Questioner Agent]
         DataAgt[Data Fetcher Agent]
-        MapAgt[Map Agent]
     end
 
     %% Flow Connections
-    Voice <--> |Audio WebM or JSON Payload| Routes
-    Chat <--> |Text or JSON Payload| Routes
+    Voice <--> |Audio WebM| Routes
+    Chat <--> |Text / JSON| Routes
 
-    Routes <--> |Route and Execute| Orchestrator
+    Routes <--> |Orchestrate| Orchestrator
 
-    Orchestrator --> |Query Patient State| Brain
-    Orchestrator --> |Analyze Intent| ModelRouter
-    Orchestrator <--> |Compose Reply| CommAgent
-    Orchestrator <--> |Execute Tool or Tasks| IntegAgent
+    Orchestrator --> |Patient History| Brain
+    Orchestrator --> |Reasoning| Gemini
+    Orchestrator <--> |Tool Access| MCPServer
 
-    CommAgent --> |Generate Conversational Output| Gemini
+    MCPServer <--> Brain
+    MCPServer <--> Workspace
+    MCPServer <--> GoogleMaps
 
-    IntegAgent --> |Transcription and Synthesis| Speech
-    IntegAgent --> |Fetch and Upload Files| Drive
-    IntegAgent --> |Log Audit Trails| BigQuery
+    IntegAgent --> |Transcription| Speech
+    IntegAgent --> |Log Trails| BigQuery
+    IntegAgent --> |Wearable Sync| HealthConnect
+
+    HITLAgent --> |Create Task| Asana
 
     %% ADK delegation
     Orchestrator -.-> |ADK A2A| VisionAgt
     Orchestrator -.-> |ADK A2A| RecipeAgt
-    Orchestrator -.-> |ADK A2A| CommAgtADK
     Orchestrator -.-> |ADK A2A| QuestAgt
     Orchestrator -.-> |ADK A2A| DataAgt
-    Orchestrator -.-> |ADK A2A| MapAgt
 ```
 
 ## 4. Runtime Components and Ownership
