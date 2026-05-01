@@ -47,13 +47,12 @@ Shreesha is a 22-year-old patient managing two chronic conditions simultaneously
 The demo walks through drug interaction questions, document uploads, doctor handoff reports, medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-- [ADK demo video (mp4)](assets/Working_adk_demo.gif)
-  - Stored at `assets/Working_adk_demo.mp4` in this repo (open in GitHub if the link does not resolve in your viewer).
-
+![ADK demo video](assets/Working_adk_demo.gif)
+<!--
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
 ![OCR input sample](assets/Ocr_input%20(1).png)
 ![Latency benchmark](assets/Remarkable_latency_of_alloydb.png)
-
+-->
 ## Quick Start
 ### Prerequisites
 - Python 3.12+
