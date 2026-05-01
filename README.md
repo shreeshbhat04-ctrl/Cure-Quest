@@ -123,20 +123,73 @@ For detailed sequence diagrams, see [Architecture and Design](docs/ARCHITECTURE_
 ## Directory Structure
 ```text
 Cure-Quest/
-├── adk_agents/          # ADK agent packages (Vision, Recipe, etc.)
-├── docs/                # Architectural plans and checklists
-├── frontend/            # React + Vite UI application
+├── adk_agents/          # ADK agent packages
+├── docs/                # Architecture and design plans
+├── frontend/
+│   ├── src/
+│   │   ├── components/  # Chat, Voice, UI components
+│   │   ├── hooks/       # Custom React hooks
+│   │   ├── lib/         # API and data utilities
+│   │   ├── screens/     # Route pages (Dashboard, CareMaze, etc.)
+│   │   └── assets/      # Static assets
+│   ├── package.json
+│   └── vite.config.ts
 ├── src/
 │   └── cure_quest/
-│       ├── adapters/    # External service connectors (Gmail, Asana, Drive)
-│       ├── agents/      # Specialist agent logic
-│       ├── api/         # FastAPI routes and Pydantic models
-│       ├── db/          # Database models and bootstrap logic
+│       ├── adapters/    # External service connectors (Asana, Gmail, etc.)
+│       ├── adk/         # ADK agent logic
+│       ├── agents/      # Specialist Python agents
+│       ├── api/         # FastAPI routes and models
+│       ├── db/          # Database models and bootstrap
 │       ├── mcp/         # Model Context Protocol server
-│       └── services/    # Business logic and model routing
-├── tests/               # Unit and integration tests
-└── pyproject.toml       # Python dependencies and project config
+│       ├── scripts/     # Utility scripts (seed, test)
+│       ├── services/    # Business logic and model routing
+│       └── app.py       # Main entry point
+└── pyproject.toml
 ```
+
+## Component Index
+### Index Method
+Each module is indexed with its purpose, inputs, and complexity. Where exact internals cannot be fully inferred without runtime interaction, entries are marked `manual-review`.
+
+### Pattern-based Detail Map
+| Pattern | Purpose | Inputs / Props | State / Lifecycle | Tests | Complexity |
+| --- | --- | --- | --- | --- | --- |
+| `frontend/src/screens/*` | Route-level composition | Router params + workspace context | React hooks lifecycle | Manual review | Render-bound |
+| `frontend/src/components/*` | Shared UI blocks | Component props | React state/effects | Manual review | UI logic |
+| `src/cure_quest/api/*` | FastAPI routes | Pydantic request models | Per-request | `test_api_models.py` | Orchestration |
+| `src/cure_quest/agents/*` | Agent reasoning | Prompt context + tool definitions | Stateless | Unit tests exist | Reasoning O(token) |
+| `src/cure_quest/adapters/*` | Service mediation | Adapter method signatures | Managed sessions | Integration tests | Request-bound |
+
+### Detailed Module Register
+| Path | Purpose | Inputs/Props | Internal state/lifecycle | Key methods/exports | External dependencies | Tests | Complexity |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `frontend/src/screens/DashboardScreen.tsx` | Patient home view | Workspace context | Polling/refresh effects | Default component | Framer Motion, GSAP | Manual review | Render-bound |
+| `frontend/src/screens/CareMazeScreen.tsx` | Symptom & Map view | Location context | Geolocation effects | Default component | Google Maps, Lucide | Manual review | UI logic |
+| `frontend/src/screens/MedicationHubScreen.tsx` | Prescription manager | Patient id | Upload/Delete state | Default component | Axios, Framer Motion | Manual review | List-bound |
+| `frontend/src/screens/DoctorWorkspaceScreen.tsx` | Clinician portal | Doctor context | Task queue state | Default component | Asana Adapter | Manual review | O(n) tasks |
+| `frontend/src/screens/HistoryScreen.tsx` | Care timeline | Patient history | Grouping/Sorting logic | Default component | Date-fns | Manual review | O(n) events |
+| `frontend/src/screens/HITLScreen.tsx` | Doctor review flow | Case id | Review submission state | Default component | Backend HITL API | Manual review | Form-bound |
+| `frontend/src/screens/Profile.tsx` | User settings | User session | Edit/Save lifecycle | Default component | Zustand Store | Manual review | Form-bound |
+| `frontend/src/components/ChatAssistant.tsx` | Conversational interface | Session id | Message history state | `ChatAssistant` | Backend Chat API | Manual review | O(history) |
+| `frontend/src/components/VoiceAssistant.tsx` | Audio interaction | Audio stream | Recording/Speech state | `VoiceAssistant` | Google STT/TTS | Manual review | Async-bound |
+| `frontend/src/components/DoctorCard.tsx` | Clinician profile UI | `Doctor` object | Hover/Expand state | `DoctorCard` | Tailwind CSS | Manual review | Render-bound |
+| `frontend/src/hooks/useWorkspace.ts` | State provider | Config object | Global state sync | `useWorkspace` | Zustand | Manual review | O(1) access |
+| `frontend/src/lib/api.ts` | API transport layer | Request config | Interceptor lifecycle | `api` instance | Axios | Manual review | Request-bound |
+| `src/cure_quest/api/routes.py` | Backend API routes | Pydantic models | FastAPI lifespan | Router definition | Services, Agents | `test_api.py` | O(1) routing |
+| `src/cure_quest/agents/orchestrator.py` | Task delegation | User message | Stateless reasoning | `route_conversation` | Specialist Agents | Unit tests | Intent-bound |
+| `src/cure_quest/mcp/server.py` | Tool access layer | Tool requests | Server lifecycle | `mcp.server` | DB, Services | `test_mcp.py` | Tool-bound |
+
+## API Contracts
+Cure-Quest uses **Pydantic** for strict API contract enforcement. All requests and responses are typed, ensuring safety between the React frontend and FastAPI backend.
+- **Intake**: `POST /patient/intake`
+- **Conversation**: `POST /orchestration/conversation-route`
+- **Voice**: `POST /orchestration/voice-route`
+- **HITL Report**: `POST /orchestration/hitl-report`
+
+## Data Flow & State Management
+- **Frontend State**: Managed via **Zustand** for global workspace data and **React Hooks** for local component state.
+- **Backend Flow**: Audio/Text -> Orchestrator -> Intent Analysis -> Specialist Agent -> Tool Call (MCP) -> Brain (AlloyDB) -> Response Synthesis -> Patient.
 
 ---
 
