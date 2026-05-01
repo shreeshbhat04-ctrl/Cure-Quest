@@ -56,7 +56,7 @@ medication reminders, and Gmail-based care summaries.
 
 ## Quick Start
 ### Prerequisites
-- Python 3.10+ (pyproject.toml), 3.12+ recommended
+- Python 3.10+
 - Node.js 18+
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
@@ -116,7 +116,7 @@ The backend API is prepared for Cloud Run deployment with `Dockerfile`, `.docker
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
-| **Backend** | Python 3.10+ (pyproject.toml), 3.12+ recommended; FastAPI, SQLAlchemy 2.0, Uvicorn |
+| **Backend** | Python 3.10+, FastAPI, SQLAlchemy 2.0, Uvicorn |
 | **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
 | **Database** | Google Cloud AlloyDB (PostgreSQL-compatible), SQLite for local dev |
 | **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
@@ -244,7 +244,7 @@ See [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md) for the full conn
 ## AI/ML Section
 - Primary conversational model: Gemini 3.1 Flash.
 - Vision classification: MedSigLIP for prescription/symptom imagery.
-- Clinical reasoning path: MedGemma (current runtime route: `/medical-models/medgemma`; deprecation planning tracked in Plan 2).
+- Clinical reasoning path: MedGemma (runtime route: `/medical-models/medgemma`).
 - Embedding and memory workstreams are tracked in the planning documents.
 
 ## Styling & Theming
