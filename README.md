@@ -1,292 +1,175 @@
 # Cure-Quest
 
-An AI-assisted multi-agent prototype for medication-aware chronic care, document ingestion, human-in-the-loop (HITL) review, and clinician handoffs.
+**An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
 
-This README is a concise reference: tech stack, architecture, quick start, and validation pointers. Detailed design and runbooks live under `docs/`.
+Cloud Run API endpoint (for testing):
+https://cure-quest-api-315569715049.us-central1.run.app
 
-Table of contents
-- Project overview
-- Tech Stack
-- Architecture (diagrams)
-- Privacy & Trust
-- Role flows
-- Data flow
-- AI / ML pipeline
-- Quick start
-- Validation checklist
-- Appendix
+## Documentation Plan
+- Source-of-truth docs: [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md), [Plan 1](docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md), [Plan 2](docs/PLAN_2_IMPLEMENTATION_CHANGE_MAP.md), [Plan 3](docs/PLAN_3_INFORMATION_NEEDED.md), [Wiring Checklist](docs/WIRING_CHECKLIST.md).
+- First 3 files/folders to inspect: `docs/CONNECTION_ARCHITECTURE.md`, `docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md`, `docs/WIRING_CHECKLIST.md`.
+- First diagram to generate: **Connection Architecture Map** (FastAPI + ADK + MCP + DB).
+- Estimated pass order: `1) env + bootstrap scripts, 2) backend routes/agents/adapters/MCP, 3) frontend screens/components, 4) integrations + deployment`.
 
-## Tech Stack
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Demo Media](#demo-media)
+- [Quick Start](#quick-start)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Directory Structure](#directory-structure)
+- [Component Index](#component-index)
+- [API Contracts](#api-contracts)
+- [Data Flow & State Management](#data-flow--state-management)
+- [AI/ML Section](#aiml-section)
+- [Styling & Theming](#styling--theming)
+- [Testing](#testing)
+- [Build & Deployment](#build--deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Validation & Manifest](#validation--manifest)
+- [VALIDATION CHECKLIST](#validation-checklist)
+- [Appendix](#appendix)
 
-### Frontend
-- React ^18.3.1 (lockfile resolved 18.3.1)
-- Vite ^5.1.0 (lockfile resolved 5.4.21)
-- TypeScript ^5.3.3
-- Tailwind CSS ^3.4.1 (lockfile resolved 3.4.19)
-- Framer Motion ^12.29.0
-- GSAP ^3.14.2 + @gsap/react
-- Zustand ^4.5.0 (lockfile resolved 4.5.7)
-- Monaco Editor, React Flow, DnD Kit
-- Axios for API transport
-- AWS Bedrock runtime client path for direct frontend chat/card generation
+## Project Overview
+Cure-Quest coordinates care across multiple dimensions:
+- **Voice/Chat AI** for patient questions and follow-up guidance.
+- **Document upload** for prescription scans and medical artifacts.
+- **HITL review** to produce doctor-ready summaries.
+- **Medication reminders** and care notifications.
+- **Google Workspace integration** for Drive, Calendar, Gmail, Speech, and Maps.
 
-### Backend
-- FastAPI 0.104.1
-- Uvicorn 0.24.0
-- Pydantic 2.5.0, pydantic-settings 2.1.0
-- Neo4j 5.14.1
-- ChromaDB 0.4.15
-- Redis 5.0.1
-- Celery 5.3.4 + RabbitMQ (broker)
-- Tree-sitter parsers (Python/JS/TS/Java)
-- Bedrock/Nova embedding service path (provider-backed embeddings)
+### Demo Story — Shreesha's Care Journey
+Shreesha is a 22-year-old patient managing two chronic conditions simultaneously:
+- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate.
+- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily.
 
-### Infra & deployment clues
-- Docker / Docker Compose (see `backend/docker-compose.yml`, `backend/docker-compose.prod.yml`)
-- Vercel config (`frontend/vercel.json`)
-- Netlify config (`frontend/netlify.toml`)
+The demo walks through drug interaction questions, document uploads, doctor handoff reports, medication reminders, and Gmail-based care summaries.
 
-Version verification sources: `frontend/package.json`, `frontend/package-lock.json`, and `backend/requirements.txt` + compose/runtime config. Items with range vs lock mismatches are flagged in the VALIDATION CHECKLIST.
+## Demo Media
+- [ADK demo video (mp4)](assets/Working_adk_demo.gif)
+  - Stored at `assets/Working_adk_demo.mp4` in this repo (open in GitHub if the link does not resolve in your viewer).
 
-## Architecture
+![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
+![OCR input sample](assets/Ocr_input%20(1).png)
+![Latency benchmark](assets/Remarkable_latency_of_alloydb.png)
 
-1) Layered System Architecture
+## Quick Start
+### Prerequisites
+- Python 3.12+
+- Node.js 18+
+- Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
+- AlloyDB instance (or use SQLite for local dev)
 
-```mermaid
-flowchart TB
-    subgraph FE[Frontend Layer]
-      UI[React UI Pages/Features]
-      STORE[Zustand Store]
-      CHAT[Amazon Bedrock Nova Client in Browser]
-      API_CLIENT[Axios GraphRAG API Client]
-    end
-
-    subgraph API[API Layer]
-      FASTAPI[FastAPI App src.main]
-      ROUTERS[Upload/Query/Projects/Visualization Routers]
-      MIDDLEWARE[CORS + Request ID + Error Handlers]
-    end
-
-    subgraph BL[Business Logic Layer]
-      UPLOAD[UploadService + upload_tasks]
-      PARSER[CodeParserService]
-      QUERY[QueryService + ContextRetriever]
-      VIS[VisualizerAIService deterministic]
-      GRAPH[GraphService]
-      VECTOR[VectorService]
-      ANALYTICS[Client-side Analytics/SRS/Gamification]
-    end
-
-    subgraph DATA[Data Layer]
-      NEO4J[(Neo4j)]
-      CHROMA[(Chroma)]
-      REDIS[(Redis Cache)]
-      RABBIT[(RabbitMQ)]
-      SESSION[(./upload_sessions JSON)]
-      LOCAL[(localStorage)]
-    end
-
-    UI --> STORE
-    UI --> API_CLIENT
-    UI --> CHAT
-    API_CLIENT --> FASTAPI
-    FASTAPI --> ROUTERS
-    ROUTERS --> UPLOAD
-    ROUTERS --> QUERY
-    ROUTERS --> VIS
-    UPLOAD --> PARSER
-    UPLOAD --> GRAPH
-    UPLOAD --> VECTOR
-    UPLOAD --> RABBIT
-    QUERY --> GRAPH
-    QUERY --> VECTOR
-    QUERY --> REDIS
-    GRAPH --> NEO4J
-    VECTOR --> CHROMA
-    UPLOAD --> SESSION
-    ANALYTICS --> LOCAL
-```
-
-Caption: Layered architecture from UI to storage with queue/cache boundaries.
-
-2) Privacy & Trust Layer (detailed)
-
-```mermaid
-flowchart LR
-    U[User Input: Chat/Code/Uploads] --> V1[Client validation + size limits]
-    V1 --> API[FastAPI validation + Pydantic models]
-    API --> V2[Request ID + structured errors]
-    V2 --> P1[Project processing]
-    P1 --> D1[(Neo4j/Chroma/Redis)]
-    P1 --> S1[(upload_sessions JSON)]
-    API --> E1[Execution policy gate]
-    E1 -->|allowed| EXE[Deterministic subprocess trace]
-    E1 -->|blocked| ERR[403 sandbox_blocked]
-    D1 --> Q[Query/Graph/Context responses]
-    Q --> A1[Frontend render]
-    A1 --> A2[Local-only analytics aggregates]
-    A2 --> ADM[Admin-like trend view in app]
-```
-
-Trust controls: request IDs, strict Pydantic payloads, environment-driven execution gate, and local vs server persistence boundaries. There is no built-in consent audit or cryptographic ZKP module — those would be operational extensions.
-
-3) Application Role Flows
-
-```mermaid
-flowchart LR
-    LAND[Landing] --> HUB[Learning Hub]
-    LAND --> APP["/app"]
-    LAND --> BUILD["/build"]
-    LAND --> DOJO["/dojo"]
-    LAND --> VIS["/visualizer"]
-
-    subgraph Learner["Role: Learner User"]
-      HUB --> DOJO
-      DOJO --> SRS["/srs"]
-      SRS --> ANALYTICS["/analytics"]
-      ANALYTICS --> ACH["/achievements"]
-    end
-
-    subgraph Builder["Role: Builder IDE User"]
-      APP --> BUILD
-      BUILD --> CHAT[Chat + CodeEditor]
-      CHAT --> GRAPH[Graph Panel]
-      CHAT --> VIS
-    end
-
-    subgraph Maintainer["Role: Project Maintainer Admin-like"]
-      UPLOAD[ProjectUpload] --> STATUS[Upload Status Polling]
-      STATUS --> PROJECTS["/api/projects"]
-      PROJECTS --> DELETE[Delete/Update project data]
-    end
-
-    ACH --> EXIT[Exit/Return routes]
-    VIS --> EXIT
-```
-
-Caption: Learner, Builder, and Maintainer journeys exposed as route surfaces.
-
-4) Data Flow Diagram
-
-```mermaid
-flowchart TB
-    FE[Frontend: Upload/Chat/Dojo/Visualizer] --> API[FastAPI /api routes]
-    API --> VAL[Pydantic validation + limits]
-    VAL --> UQ{Request Type}
-    UQ -->|Upload| TASK[Celery task or local fallback thread]
-    UQ -->|Query| QRY[QueryService + ContextRetriever]
-    UQ -->|Visualization Graph| GV[QueryService graph mode]
-    UQ -->|Visualization Execution| XV[Visualizer deterministic subprocess]
-
-    TASK --> PARSE[Tree-sitter parser]
-    PARSE --> GRAPH[(Neo4j)]
-    PARSE --> EMBED[Amazon Bedrock Nova embeddings]
-    EMBED --> VDB[(Chroma)]
-    QRY --> GRAPH
-    QRY --> VDB
-    QRY --> CACHE[(Redis)]
-    GV --> GRAPH
-    XV --> TRACE[Execution trace payload]
-
-    GRAPH --> RESP[JSON responses]
-    VDB --> RESP
-    TRACE --> RESP
-    RESP --> FE
-    FE --> LOCAL[(localStorage analytics/SRS/gamification)]
-```
-
-Caption: Upload parsing → graph + embeddings → query/visualizer responses. Frontend-only analytics persist locally.
-
-5) AI / ML Pipeline Diagram
-
-```mermaid
-flowchart LR
-    subgraph OfflineOrBatch[Offline / Batch-like]
-      SRC[Uploaded code files] --> PARSE[AST + entity extraction]
-      PARSE --> FEAT[Feature text chunks]
-      FEAT --> EMB[Amazon Bedrock Nova embedding model]
-      EMB --> CH[(Chroma vector index)]
-      PARSE --> G[(Neo4j code graph)]
-    end
-
-    subgraph Realtime[Realtime]
-      PROMPT[User query/chat prompt] --> CTX[Context retrieval]
-      CTX --> MERGE[Graph + vector merge]
-      MERGE --> OUT[Context answer payload]
-      CODE[Visualizer code input] --> DET[Deterministic analyzer]
-      DET --> CG[Call graph]
-      DET --> XT[Execution trace]
-    end
-
-    CH --> CTX
-    G --> CTX
-```
-
-Caption: Offline embedding/index build and realtime retrieval + deterministic visualizer analysis.
-
-6) Why-this-stack
-
-```mermaid
-flowchart LR
-    T1[React + Vite] --> C1[Fast interactive SPA + rapid iteration] --> O1[Responsive learning UX]
-    T2[Zustand persist] --> C2[Simple global state + local persistence] --> O2[Cross-page continuity]
-    T3[FastAPI + Pydantic] --> C3[Typed contracts + auto docs] --> O3[Faster API iteration]
-    T4[Neo4j] --> C4[Graph traversals for code relationships] --> O4[Dependency and impact views]
-    T5[Chroma + embeddings] --> C5[Semantic code retrieval] --> O5[Context-aware assistance]
-    T6[Celery + RabbitMQ] --> C6[Async upload processing] --> O6[Non-blocking ingestion]
-    T7[Tree-sitter] --> C7[Deterministic multi-language parsing] --> O7[Reliable entity extraction]
-    T8[Deterministic visualizer engine] --> C8[Traceable call/execution analysis] --> O8[Trustworthy step-by-step behavior]
-```
-
-Caption: Technology → capability → outcome mapping.
-
-## Quick Start (condensed)
-
-Prerequisites: Python 3.12+, Node.js 18+, Google Cloud project with required APIs.
-
-Backend (dev):
-
+### 1) Backend setup
 ```powershell
+# Create virtual environment
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e .[dev]
-Copy-Item .env.example .env
-# edit .env with keys (GOOGLE_*, DATABASE_URL, etc.)
+
+# Configure environment
+copy .env.example .env
+# Edit .env with your keys
+
+# Seed demo data
+python -m cure_quest.scripts.seed
+
+# Run API
 uvicorn cure_quest.app:app --reload
 ```
 
-Frontend (dev):
-
+### 2) Frontend setup
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-Database / seed hints:
-- Use AlloyDB or Postgres for full features. For local tests, toggle `DATABASE_URL` to sqlite.
-- If using AlloyDB Auth Proxy, run `python scripts/print_alloydb_proxy_command.py` and start the proxy before migrations/seeding.
+---
 
-## Validation Checklist
-- [ ] `.env` has `GOOGLE_CLOUD_PROJECT`, model keys, and `DATABASE_URL`.
-- [ ] Run `python -m cure_quest.scripts.seed` to seed demo data.
-- [ ] `uvicorn cure_quest.app:app --reload` serves `/docs` and `/health`.
-- [ ] ADK agent launches from `adk_agents/` and can reach the MCP server.
-- [ ] Run `pytest` to validate core backend tests.
+## Tech Stack
+### Core
+- **Backend**: FastAPI, SQLAlchemy, Pydantic.
+- **Database**: AlloyDB (PostgreSQL-compatible) for patient memory.
+- **Frontend**: React, Vite, TypeScript, Framer Motion, GSAP.
+- **State Management**: Zustand.
 
-## Appendix & Next steps
-- Diagrams and long-form design: `docs/` folder.
-- Deployment notes: `cloudbuild.yaml`, `cloudbuild.frontend.yaml`, and `cloudrun.env.example`.
-- To export mermaid diagrams locally:
-
-```bash
-npx @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.svg
-```
-
-If you'd like, I can:
-- create a smaller README summary for the GitHub project page,
-- add badges (build/test/coverage), or
-- split this README into `README.md` + `CONTRIBUTING.md` + `DEPLOY.md`.
+### AI & Agents
+- **Gemini 3.1 Flash**: Clinical reasoning and conversational engine.
+- **MedSigLIP**: Vision-based medical image classification.
+- **Google ADK**: Multi-agent orchestration framework.
+- **MCP (Model Context Protocol)**: Standardized tool and data access.
 
 ---
-Updated README to match the requested structure and diagrams.
+
+## Architecture
+### High-Level Design
+Cure-Quest uses a multi-agent approach where a **Root Agent** (ADK) orchestrates specialized sub-agents.
+
+```mermaid
+graph TD
+    UI[React Frontend] --> API[FastAPI Backend]
+    API --> ORCH[Multi-Agent Orchestrator]
+    ORCH --> GEN[Gemini 3.1 Flash]
+    ORCH --> MCP[MCP Server]
+    MCP --> DB[(AlloyDB Patient Brain)]
+    ORCH --> AGENTS[ADK Sub-Agents: Vision, Recipe, Map, etc.]
+```
+
+For detailed sequence diagrams, see [Architecture and Design](docs/ARCHITECTURE_AND_DESIGN.md).
+
+---
+
+## Directory Structure
+```text
+Cure-Quest/
+├── adk_agents/          # ADK agent packages (Vision, Recipe, etc.)
+├── docs/                # Architectural plans and checklists
+├── frontend/            # React + Vite UI application
+├── src/
+│   └── cure_quest/
+│       ├── adapters/    # External service connectors (Gmail, Asana, Drive)
+│       ├── agents/      # Specialist agent logic
+│       ├── api/         # FastAPI routes and Pydantic models
+│       ├── db/          # Database models and bootstrap logic
+│       ├── mcp/         # Model Context Protocol server
+│       └── services/    # Business logic and model routing
+├── tests/               # Unit and integration tests
+└── pyproject.toml       # Python dependencies and project config
+```
+
+---
+
+## AI/ML Section
+### Model Routing
+- **Gemini 3.1 Flash**: Handles complex reasoning, patient check-ins, and multi-turn chat. It leverages AlloyDB grounding to ensure responses are clinical-context-aware.
+- **MedSigLIP**: Integrated for specialized image classification tasks, such as identifying prescription labels and symptom severity from photos.
+
+### Agentic Patterns
+- **Google ADK**: Enables A2A (Agent-to-Agent) delegation. For example, the Vision Agent can delegate to the Recipe Agent when it detects a dietary restriction in an uploaded document.
+- **MCP (Model Context Protocol)**: Exposes "Tools" for the agents to safely interact with the database and external APIs (Maps, Calendar, etc.) in a standardized way.
+
+---
+
+## Testing
+- **Unit Tests**: Located in `tests/`, covering adapters and core services.
+- **Integration Tests**: In `tests/integration/`, validating the full path from API to Database.
+- **Connectivity Tests**: `scripts/test_database_connection.py` and `scripts/test_mcp_connection.py`.
+
+---
+
+## VALIDATION CHECKLIST
+- [ ] `.env` has `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `DATABASE_URL`.
+- [ ] `python -m cure_quest.scripts.seed` seeds Shreesha's care journey data.
+- [ ] `uvicorn cure_quest.app:app --reload` serves `/docs` (Swagger UI).
+- [ ] ADK agent launches from `adk_agents/` and communicates with the local MCP server.
+- [ ] `pytest` passes with 80%+ coverage on core clinical routes.
+
+---
+
+## Appendix
+- [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md)
+- [Wiring Checklist](docs/WIRING_CHECKLIST.md)
+- [Cloud Run Deployment](docs/CLOUD_RUN_DEPLOYMENT.md)
+

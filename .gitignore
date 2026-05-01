@@ -42,3 +42,6 @@ alloydb-auth-proxy-x64.exe
 # IDE
 .vscode/
 .idea/
+
+# Media
+assets/*.mp4
