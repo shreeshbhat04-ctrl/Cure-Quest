@@ -124,31 +124,31 @@ npm run dev
 graph TD
 
 %% Row 1
-A1[React + Vite] --> B1[Fast interactive SPA + rapid iteration] --> C1[Responsive learning UX]
+A1["React + Vite"] --> B1["Fast interactive SPA + rapid iteration"] --> C1["Responsive learning UX"]
 
 %% Row 2
-A2[Zustand persist] --> B2[Simple global state + local persistence] --> C2[Cross-page continuity]
+A2["Zustand persist"] --> B2["Simple global state + local persistence"] --> C2["Cross-page continuity"]
 
 %% Row 3
-A3[FastAPI + Pydantic] --> B3[Typed contracts + auto docs] --> C3[Faster API iteration]
+A3["FastAPI + Pydantic"] --> B3["Typed contracts + auto docs"] --> C3["Faster API iteration"]
 
 %% Row 4
-A4[Gemini 3.1 Flash + AlloyDB] --> B4[LLM grounding with patient memory] --> C4[Clinical context-aware responses]
+A4["Gemini 3.1 Flash + AlloyDB"] --> B4["LLM grounding with patient memory"] --> C4["Clinical context-aware responses"]
 
 %% Row 5
-A5[Google ADK] --> B5[Multi-agent A2A orchestration] --> C5[Specialist task delegation]
+A5["Google ADK"] --> B5["Multi-agent A2A orchestration"] --> C5["Specialist task delegation"]
 
 %% Row 6
-A6[MedSigLIP] --> B6[Vision-based medical image classification] --> C6[Prescription and symptom analysis]
+A6["MedSigLIP"] --> B6["Vision-based medical image classification"] --> C6["Prescription and symptom analysis"]
 
 %% Row 7
-A7[MCP (Model Context Protocol)] --> B7[Standardised tool and data access] --> C7[Safe agent-to-service boundaries]
+A7["MCP (Model Context Protocol)"] --> B7["Standardised tool and data access"] --> C7["Safe agent-to-service boundaries"]
 
 %% Row 8
-A8[AlloyDB + pgvector] --> B8[Relational + vector patient brain] --> C8[Unified memory and semantic search]
+A8["AlloyDB + pgvector"] --> B8["Relational + vector patient brain"] --> C8["Unified memory and semantic search"]
 
 %% Row 9
-A9[Cloud Run] --> B9[Stateless containerised deployment] --> C9[Scalable serverless backend]
+A9["Cloud Run"] --> B9["Stateless containerised deployment"] --> C9["Scalable serverless backend"]
 
 
 %% Styling
