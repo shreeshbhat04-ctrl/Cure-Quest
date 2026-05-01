@@ -41,8 +41,8 @@ Cure-Quest coordinates care across multiple dimensions:
 
 ### Demo Story — Shreesha's Care Journey
 Shreesha is a 22-year-old patient managing two chronic conditions simultaneously:
-- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck.
-- **Focal Epilepsy** — currently controlled with Levetiracetam 500 mg twice daily.
+- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate.
+- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily.
 
 The demo walks through drug interaction questions, document uploads, doctor handoff reports,
 medication reminders, and Gmail-based care summaries.
@@ -56,7 +56,7 @@ medication reminders, and Gmail-based care summaries.
 
 ## Quick Start
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+
 - Node.js 18+
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
@@ -116,9 +116,9 @@ The backend API is prepared for Cloud Run deployment with `Dockerfile`, `.docker
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
-| **Backend** | Python 3.10+, FastAPI, SQLAlchemy 2.0, Uvicorn |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0, Uvicorn |
 | **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
-| **Database** | Google Cloud AlloyDB (PostgreSQL-compatible), SQLite for local dev |
+| **Database** | Google Cloud AlloyDB (PostgreSQL-compatible) |
 | **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
 | **Integrations** | Asana (ticketing), OpenFDA (drug labels), BigQuery (analytics) |
 | **Design System** | "Digital Sanctuary" — Sage/Terracotta/Sand palette, glassmorphism |
