@@ -48,8 +48,6 @@ The demo walks through drug interaction questions, document uploads, doctor hand
 medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-> Note: HTML video tags are not supported in GitHub Markdown. Use the direct link below to view the demo.
-
 - [Working ADK demo video (mp4)](assets/Working_adk_demo.mp4)
 
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
@@ -134,10 +132,24 @@ Core runtime surfaces from [Connection Architecture](docs/CONNECTION_ARCHITECTUR
 
 ```mermaid
 flowchart LR
-    FE[Frontend or API client] --> API[FastAPI app]
-    API -->|direct| DB[(Database)]
-    API -->|mcp| MCP[MCP server]
-    ADK[Google ADK web] --> MCP
+    subgraph Client
+        FE[Frontend or API client]
+        ADK[Google ADK web]
+    end
+
+    subgraph Server
+        API[FastAPI app]
+        MCP[MCP server]
+    end
+
+    subgraph Data
+        DB[(Database)]
+    end
+
+    FE --> API
+    API -->|direct| DB
+    API -->|mcp| MCP
+    ADK --> MCP
     MCP --> DB
 ```
 
