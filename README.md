@@ -206,17 +206,17 @@ LP --> HIST
 %% ================= PATIENT JOURNEY =================
 subgraph PJ[Patient Journey]
 
-DASH --> PROF[Profile (Vitals / Conditions / Prescriptions)]
+DASH --> PROF["Profile (Vitals / Conditions / Prescriptions)"]
 DASH --> H1[History]
 H1 --> SNAP[Condition Snapshots (Accordion)]
 SNAP --> QRY[Agent History Query]
 
 CARE --> MAPA[Map Agent]
-MAPA --> MAPS[Nearby Pharmacy / Clinic / Hospital]
+MAPA --> MAPS["Nearby Pharmacy / Clinic / Hospital"]
 
 CARE --> UP[Upload Image]
 UP --> VA[Vision Agent]
-VA -->|classify| FOLLOW[Follow-up / Doctor Handoff / Chat]
+VA -->|classify| FOLLOW["Follow-up / Doctor Handoff / Chat"]
 
 MEDS --> SAFE[Drug Safety Check]
 SAFE --> GEM1[Gemini + AlloyDB]
@@ -373,7 +373,7 @@ flowchart TB
 
 %% ================= FRONTEND =================
 subgraph F[Frontend Layer]
-    FE[React Frontend<br/>(Chat / Voice / Upload / Care Maze / Medication Hub)]
+    FE["React Frontend<br/>(Chat / Voice / Upload / Care Maze / Medication Hub)"]
 end
 
 %% ================= API =================
@@ -391,7 +391,7 @@ subgraph AG[Agent Layer]
     GEM[Gemini 3.1 Flash]
 
     %% Branch 2
-    VIS[Vision Agent<br/>(Prescription / Symptom / Other)]
+    VIS["Vision Agent<br/>(Prescription / Symptom / Other)"]
     GV[Gemini Vision]
 
     %% Branch 3
@@ -471,14 +471,14 @@ flowchart LR
 
 %% ================= CLIENT =================
 subgraph CL[Client Layer]
-    U[User Input<br/>(Chat / Voice / File / Form)]
-    CV[Client Validation<br/>(size limits, file checks, sanitisation)]
+    U["User Input<br/>(Chat / Voice / File / Form)"]
+    CV["Client Validation<br/>(size limits, file checks, sanitisation)"]
 end
 
 %% ================= API =================
 subgraph API[API Layer]
     API1[FastAPI receives request]
-    PYD[Pydantic Validation<br/>(typed contracts + constraints)]
+    PYD["Pydantic Validation<br/>(typed contracts + constraints)"]
     RID[Request ID Injection]
     ERR[Structured Error Response]
 end
@@ -491,9 +491,9 @@ end
 
 %% ================= PROCESSING =================
 subgraph PS[Processing + Storage]
-    PROC[Project Processing<br/>(Agents / Orchestrator / Vision / Recipe / Map)]
+    PROC["Project Processing<br/>(Agents / Orchestrator / Vision / Recipe / Map)"]
     DB[(AlloyDB)]
-    SESS[(Upload Sessions<br/>JSON store)]
+    SESS["Upload Sessions<br/>JSON store"]
 end
 
 %% ================= EXTERNAL =================
