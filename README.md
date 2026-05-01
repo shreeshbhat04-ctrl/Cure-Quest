@@ -10,12 +10,6 @@
 Cloud Run API endpoint (for testing):
 https://cure-quest-api-315569715049.us-central1.run.app
 
-## Documentation Plan
-- Source-of-truth docs: [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md), [Plan 1](docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md), [Plan 2](docs/PLAN_2_IMPLEMENTATION_CHANGE_MAP.md), [Plan 3](docs/PLAN_3_INFORMATION_NEEDED.md), [Wiring Checklist](docs/WIRING_CHECKLIST.md).
-- First 3 files/folders to inspect: `docs/CONNECTION_ARCHITECTURE.md`, `docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md`, `docs/WIRING_CHECKLIST.md`.
-- First diagram to generate: **Connection Architecture Map** (FastAPI + ADK + MCP + DB).
-- Estimated pass order: `1) env + bootstrap scripts, 2) backend routes/agents/adapters/MCP, 3) frontend screens/components, 4) integrations + deployment`.
-
 ## Table of Contents
 - [Project Overview](#project-overview)
 - [Demo Media](#demo-media)
