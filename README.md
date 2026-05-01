@@ -1,115 +1,68 @@
 # Cure-Quest
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
-## Cloud Run API endpoint (for testing)
+
+Cloud Run API endpoint (for testing):
 https://cure-quest-api-315569715049.us-central1.run.app
 
-## Demo Story — Shreesha's Care Journey
+## Documentation Plan
+- Source-of-truth docs: [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md), [Plan 1](docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md), [Plan 2](docs/PLAN_2_IMPLEMENTATION_CHANGE_MAP.md), [Plan 3](docs/PLAN_3_INFORMATION_NEEDED.md), [Wiring Checklist](docs/WIRING_CHECKLIST.md).
+- First 3 files/folders to inspect: `docs/CONNECTION_ARCHITECTURE.md`, `docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md`, `docs/WIRING_CHECKLIST.md`.
+- First diagram to generate: **Connection Architecture Map** (FastAPI + ADK + MCP + DB).
+- Estimated pass order: `1) env + bootstrap scripts, 2) backend routes/agents/adapters/MCP, 3) frontend screens/components, 4) integrations + deployment`.
 
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Demo Media](#demo-media)
+- [Quick Start](#quick-start)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Directory Structure](#directory-structure)
+- [Component Index](#component-index)
+- [API Contracts](#api-contracts)
+- [Data Flow & State Management](#data-flow--state-management)
+- [AI/ML Section](#aiml-section)
+- [Styling & Theming](#styling--theming)
+- [Testing](#testing)
+- [Build & Deployment](#build--deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Validation & Manifest](#validation--manifest)
+- [VALIDATION CHECKLIST](#validation-checklist)
+- [Appendix](#appendix)
+
+## Project Overview
+Cure-Quest coordinates care across multiple dimensions:
+- **Voice/Chat AI** for patient questions and follow-up guidance.
+- **Document upload** for prescription scans and medical artifacts.
+- **HITL review** to produce doctor-ready summaries.
+- **Medication reminders** and care notifications.
+- **Google Workspace integration** for Drive, Calendar, Gmail, Speech, and Maps.
+
+### Demo Story — Shreesha's Care Journey
 Shreesha is a 22-year-old patient managing two chronic conditions simultaneously:
+- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate.
+- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily.
 
-- **Atopic Eczema** (moderate to severe) — recurring flares on forearms and neck, managed with topical Clobetasol Propionate
-- **Focal Epilepsy** — diagnosed at age 19, currently controlled with Levetiracetam 500 mg twice daily
+The demo walks through drug interaction questions, document uploads, doctor handoff reports,
+medication reminders, and Gmail-based care summaries.
 
-The platform demonstrates how Cure-Quest coordinates care across multiple dimensions:
+## Demo Media
+- [ADK demo video (mp4)](assets/Working_adk_demo.mp4)
+  - Stored at `assets/Working_adk_demo.mp4` in this repo (open in GitHub if the link does not resolve in your viewer).
 
-1. **Voice/Chat AI** — Shreesha asks about drug interactions between his corticosteroid cream and anti-epileptic medication
-2. **Document Upload** — He uploads prescription scans that are AI-classified (MedSigLIP) and routed to organized Google Drive folders
-3. **HITL Review** — The AI generates a comprehensive patient report with medication durations, condition analysis, and recommended actions for his neurologist
-4. **Medication Reminders** — He sets daily reminder times for both medications
-5. **Gmail Integration** — Care summaries are emailed directly to his doctor
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   React Frontend                    │
-│  Login → Dashboard → Care Maze → Meds → HITL        │
-│  Voice Assistant │ Chat Assistant │ File Upload     │
-└──────────────────────┬──────────────────────────────┘
-                       │ REST API
-┌──────────────────────┴──────────────────────────────┐
-│                  FastAPI Backend                     │
-│                                                      │ 
-│  ┌─────────────┐  ┌────────────┐  ┌──────────────┐   │
-│  │ Orchestrator │──│ Intake     │  │ Formulary    │  │
-│  │              │  │ Agent      │  │ Agent        │  │
-│  │   routes &   │  ├────────────┤  ├──────────────┤  │
-│  │   delegates  │  │ Comms      │  │ Diet Agent   │  │
-│  │              │  │ Agent      │  ├──────────────┤  │
-│  │              │  ├────────────┤  │ Document     │  │
-│  │              │  │ HITL Agent │  │ Agent        │  │
-│  └──────┬───────┘  └────────────┘  └──────────────┘  │
-│         │                                            │
-│  ┌──────┴──────────────────────────────────────────┐ │
-│  │              Integration Agent                  │ │
-│  │  Drive │ Calendar │ Gmail │ Speech │ BigQuery   │ │
-│  │  OpenFDA │ Pharmacy │ MedSigLIP │ MedGemma      │ │
-│  └──────┬──────────────────────────────────────────┘ │
-└─────────┼────────────────────────────────────────────┘
-          │
-    ┌─────┴──────┐      ┌────────────┐
-    │  AlloyDB   │      │ Google     │
-    │ (EHR Data) │      │ Workspace  │
-    └────────────┘      │ Drive/Cal/ │
-                        │ Gmail      │
-                        └────────────┘
-```
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
-| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0, Uvicorn |
-| **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
-| **Database** | Google Cloud AlloyDB (PostgreSQL-compatible) |
-| **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
-| **Integrations** | Asana (ticketing), OpenFDA (drug labels), BigQuery (analytics) |
-| **Design System** | "Digital Sanctuary" — Sage/Terracotta/Sand palette, glassmorphism, organic editorialism |
-
-### Documentation
-
-- [Architecture and Design](docs/ARCHITECTURE_AND_DESIGN.md)
-- [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md)
-- [Wiring Checklist](docs/WIRING_CHECKLIST.md)
-- [Cloud Run Deployment](docs/CLOUD_RUN_DEPLOYMENT.md)
-- [Design System Specification](DESIGN.md)
-- [Implementation Metrics + Conversation Content](docs/CURE_QUEST_IMPLEMENTATION_METRICS_TRANSCRIPT.md)
-
-### Implementation Metrics Snapshot (Hypothetical / Planning Targets)
-
-- Quantization planning target: **NF4 ~2.5 GB** vs **FP16 ~8.0 GB** (~69% reduction estimate).
-- QLoRA planning footprint target: **~6.5 GB** vs **~64 GB** full fine-tuning (~90% reduction estimate).
-- Throughput projection target on T4: **~52 tok/s** with NF4 + Unsloth (vs ~22 tok/s FP16 baseline).
-- Feature-goal framing includes side effects, diet interaction safety, diagnostic quality, image grounding, and HITL confidence gating.
-
-### Adapter Notebook Highlights (medical_input_for_adapter.ipynb)
-
-- The medicine adapter dataset profile covers **176,169** normalized records after price cleanup, giving broad medication coverage for agent lookups.
-- Side-effect extraction is now treated as a first-class adapter capability, with frequent patterns such as vomiting, nausea, diarrhea, abdominal pain, rash, and headache available for downstream safety summaries.
-- The adapter pipeline now exposes an explicit interaction-coverage signal: **~61.16%** of records have empty interaction payloads, so the agent can flag uncertainty and prefer HITL escalation or external validation when interaction evidence is sparse.
-- This adapter technique improves safe side-effect guidance by separating:
-  - what the model can confidently summarize from observed side-effect patterns, and
-  - where interaction data is incomplete and needs conservative handling.
-
----
+![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
+![OCR input sample](assets/Ocr_input%20(1).png)
+![Latency benchmark](assets/Remarkable_latency_of_alloydb.png)
 
 ## Quick Start
-
 ### Prerequisites
-
 - Python 3.12+
 - Node.js 18+
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
 
-### 1. Backend Setup
-
-Commands below are shown in PowerShell.
-
+### 1) Backend setup
 ```powershell
 # Create virtual environment
 python -m venv .venv
@@ -123,8 +76,7 @@ Copy-Item .env.example .env
 # Edit .env with your API keys and database URL
 ```
 
-### 2. Database Setup
-
+### 2) Database setup
 ```powershell
 # If using AlloyDB Auth Proxy:
 python scripts/print_alloydb_proxy_command.py
@@ -134,12 +86,11 @@ python scripts/print_alloydb_proxy_command.py
 $env:PYTHONPATH="src"
 python -m cure_quest.scripts.seed
 
-# Setup vector storage (optional, for medical memory)
+# Optional: enable AlloyDB vector storage for embedding-backed memory
 python scripts/setup_alloydb_vector.py
 ```
 
-### 3. Frontend Setup
-
+### 3) Frontend setup
 ```powershell
 cd frontend
 npm install
@@ -151,8 +102,7 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-### 4. Run the API
-
+### 4) Run the API
 ```powershell
 uvicorn cure_quest.app:app --reload
 ```
@@ -160,30 +110,96 @@ uvicorn cure_quest.app:app --reload
 Visit `http://localhost:3000` for the UI, or `http://localhost:8000/docs` for the API docs.
 
 ### Cloud Run
+The backend API is prepared for Cloud Run deployment with `Dockerfile`, `.dockerignore`, and
+`cloudbuild.yaml`. See `docs/CLOUD_RUN_DEPLOYMENT.md` for the full steps.
 
-The backend API is prepared for Cloud Run deployment with:
+## Tech Stack
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0, Uvicorn |
+| **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
+| **Database** | Google Cloud AlloyDB (PostgreSQL-compatible) |
+| **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
+| **Integrations** | Asana (ticketing), OpenFDA (drug labels), BigQuery (analytics) |
+| **Design System** | "Digital Sanctuary" — Sage/Terracotta/Sand palette, glassmorphism |
 
-- `Dockerfile`
-- `.dockerignore`
-- `cloudbuild.yaml`
+## Architecture
+Core runtime surfaces from [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md):
+- FastAPI application (`cure_quest.app:app`)
+- Google ADK web agent (`adk_agents/cure_quest_agent`)
+- Local MCP server (`python -m cure_quest.mcp.server`)
+- Shared database layer (SQLite locally or AlloyDB in production)
 
-See `docs/CLOUD_RUN_DEPLOYMENT.md` for the exact build, deploy, env var, and frontend wiring steps.
+```mermaid
+flowchart LR
+    subgraph Client
+        FE[Frontend or API client]
+        ADK[Google ADK web]
+    end
 
----
+    subgraph Server
+        API[FastAPI app]
+        MCP[MCP server]
+    end
 
-## Demo Walkthrough
+    subgraph Data
+        DB[(Database)]
+    end
 
-1. **Login** — Click "Sign in with Google" (or "Skip" for dev mode). Google OAuth connects Drive, Calendar, and Gmail in one step.
-2. **Dashboard** — See Shreesha's care pulse: Eczema + Epilepsy conditions, daily routines from Asana, model choreography.
-3. **Care Maze** — Ask questions like "Can I take ibuprofen with my epilepsy medication?" and get AI-powered responses with pharmacy search.
-4. **Medications** — Upload prescription images (drag & drop). AI classifies them via MedSigLIP and routes to organized Drive folders. Check drug alternatives against existing conditions.
-5. **HITL Review** — Generate a comprehensive AI comprehension report. See medication durations, condition interactions, and recommended clinical actions. Set medication reminders.
-6. **Voice** — Hold the microphone FAB and ask a health question. Google STT transcribes, Gemini responds, Google TTS speaks the answer back.
-7. **History** — Review all escalation cases, prescription scans, and notification history.
+    FE --> API
+    API -->|direct| DB
+    API -->|mcp| MCP
+    ADK --> MCP
+    MCP --> DB
+```
 
----
+For detailed connection wiring and recommended sequence, see:
+- [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md)
+- [Wiring Checklist](docs/WIRING_CHECKLIST.md)
 
-## API Reference
+## Directory Structure
+```text
+frontend/                 React UI (Vite + Tailwind)
+  src/
+    screens/              Dashboard, CareMaze, MedicationHub, HITL, History, Login
+    components/           Layout, VoiceAssistant, ChatAssistant, UI primitives
+    hooks/                useWorkspace data hook
+    lib/                  API client functions
+
+src/cure_quest/
+  api/                    FastAPI routes and Pydantic models
+  agents/                 Orchestrator, HITL, Communications, Recipe, Vision
+  adapters/               Google APIs, Asana, OpenFDA
+  db/                     SQLAlchemy models and session management
+  services/               Brain service, model routing, image classification
+  mcp/                    Model Context Protocol server
+  adk/                    Google ADK agent definition
+
+adk_agents/               ADK web agent package
+scripts/                  Setup and seed utilities
+docs/                     Architecture and planning documentation
+assets/                   Demo images and video
+```
+
+## Component Index
+### Backend (src/cure_quest)
+- `api/` — FastAPI route handlers and request/response models.
+- `agents/` — Orchestrator + domain agents (HITL, Communications, Vision, Recipe).
+- `adapters/` — Integrations (Google APIs, Asana, OpenFDA).
+- `mcp/` — Local MCP server and tool registry.
+- `db/` — SQLAlchemy schema + bootstrap.
+
+### Frontend (frontend/src)
+- `screens/` — Route-level pages (Dashboard, Care Maze, Medication Hub, HITL, History).
+- `components/` — Shared UI and assistant components.
+- `hooks/` — Workspace data and view hooks.
+- `lib/` — API and workspace client helpers.
+
+See [Plan 1](docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md) for a detailed audit of missing pieces.
+
+## API Contracts
+Full routes live in `src/cure_quest/api/routes.py`.
 
 ### Patient & Auth
 | Method | Endpoint | Description |
@@ -219,52 +235,76 @@ See `docs/CLOUD_RUN_DEPLOYMENT.md` for the exact build, deploy, env var, and fro
 | `GET` | `/gmail/{patient_id}/health-emails` | List health-related emails |
 | `POST` | `/gmail/send-care-summary` | Email care summary to doctor |
 
----
+## Data Flow & State Management
+- **Direct mode**: `API -> Brain service -> SQLAlchemy -> DB` (`BRAIN_GATEWAY_MODE=direct`).
+- **MCP mode**: `API or ADK -> MCP -> Brain tools -> DB` (`BRAIN_GATEWAY_MODE=mcp`).
+- **Frontend state** lives in React component state and workspace hooks, while durable patient state is stored in the database.
 
-## Project Layout
+See [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md) for the full connection map.
 
+## AI/ML Section
+- Primary conversational model: Gemini 3.1 Flash.
+- Vision classification: MedSigLIP for prescription/symptom imagery.
+- Clinical reasoning path: MedGemma (runtime route: `/medical-models/medgemma`).
+- Embedding and memory workstreams are tracked in the planning documents.
+
+## Styling & Theming
+The UI follows the **Digital Sanctuary** design system (sage/terracotta/sand palette, glassmorphism, organic editorial layout). See [DESIGN.md](DESIGN.md) for detailed tokens and layout guidance.
+
+## Testing
+```powershell
+# Backend tests
+pytest
+
+# Frontend checks
+cd frontend
+npm run lint
+npm run build
 ```
-frontend/                React UI (Vite + Tailwind)
-  src/
-    screens/             Dashboard, CareMaze, MedicationHub, HITL, History, Login
-    components/          Layout, VoiceAssistant, ChatAssistant, States, UI primitives
-    hooks/               useWorkspace data hook
-    lib/                 API client functions
 
-src/cure_quest/
-  api/                   FastAPI routes and Pydantic models
-  agents/                Domain agents (Orchestrator, HITL, Communications, etc.)
-  adapters/              Google APIs (Drive, Calendar, Gmail, Speech), Asana, OpenFDA
-  db/                    SQLAlchemy models and session management
-  services/              Brain service, model routing, image classification
-  mcp/                   Model Context Protocol server
-  adk/                   Google ADK agent definition
+## Build & Deployment
+- Backend container: `Dockerfile` + `cloudbuild.yaml`
+- Frontend container: `frontend.Dockerfile` + `cloudbuild.frontend.yaml`
+- Cloud Run environment: `cloudrun.env.example`
 
-scripts/                 Setup and seed utilities
-tests/                   Unit tests
-tests/integration/       Integration smoke tests (DB, Drive, Calendar, MCP, etc.)
-docs/                    Architecture documentation
-```
+See [CLOUD_RUN_DEPLOYMENT](docs/CLOUD_RUN_DEPLOYMENT.md) for deploy steps and environment wiring.
 
----
+## Troubleshooting
+- Validate DB connectivity with `python scripts/test_database_connection.py`.
+- Validate MCP tool transport with `python scripts/test_mcp_connection.py`.
+- If ADK web shows extra packages (e.g., `adapters/`, `api/`, `db/`), launch from `adk_agents/` (see [Wiring Checklist](docs/WIRING_CHECKLIST.md)).
+- Toggle `BRAIN_GATEWAY_MODE` between `direct` and `mcp` to isolate DB vs tool-transport issues.
 
-## Environment Variables
+## Contributing
+- Review the source-of-truth docs before making architectural changes.
+- Keep planning updates in `docs/` and link back here if structure shifts.
+- Open a PR describing scope, risk, and validation steps.
 
-See `.env.example` for the full list. Key variables:
+## Validation & Manifest
+Core connection sequence from [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md):
+1. Database connection
+2. FastAPI → database
+3. MCP server → database
+4. ADK agent → MCP server
+5. ADK web UI → ADK agent
+6. External integrations one by one
 
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_API_KEY` | Gemini API key for AI generation |
-| `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth client ID (for Sign in with Google) |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Web OAuth client secret |
-| `DATABASE_URL` | PostgreSQL/AlloyDB connection string |
-| `ASANA_ACCESS_TOKEN` | Asana API token for ticketing |
-| `GOOGLE_DRIVE_FOLDER_ID` | Root Drive folder for document uploads |
-| `OPENFDA_API_KEY` | OpenFDA drug label API key |
-| `GOOGLE_MAPS_API_KEY` | Places API for pharmacy search |
+## VALIDATION CHECKLIST
+- [ ] `.env` configured with required local values (see [Wiring Checklist](docs/WIRING_CHECKLIST.md)).
+- [ ] `python scripts/test_database_connection.py` passes.
+- [ ] `python -m cure_quest.scripts.seed` completes successfully.
+- [ ] `python scripts/test_mcp_connection.py` passes.
+- [ ] `uvicorn cure_quest.app:app --reload` serves `/health`.
+- [ ] ADK web launches from `adk_agents/` and can invoke MCP tools.
+- [ ] Switch `BRAIN_GATEWAY_MODE=mcp` and re-run API flows.
+- [ ] If moving to AlloyDB, update `DATABASE_URL` and re-run all smoke tests.
 
----
-
-## License
-
-Built for the Google Cloud Hackathon. All rights reserved.
+## Appendix
+- [Architecture and Design](docs/ARCHITECTURE_AND_DESIGN.md)
+- [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md)
+- [Plan 1: Repo State and Missing Endpoints](docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md)
+- [Plan 2: Implementation Change Map](docs/PLAN_2_IMPLEMENTATION_CHANGE_MAP.md)
+- [Plan 3: Information Needed](docs/PLAN_3_INFORMATION_NEEDED.md)
+- [Wiring Checklist](docs/WIRING_CHECKLIST.md)
+- [Design System Specification](DESIGN.md)
+- [Implementation Metrics Transcript](docs/CURE_QUEST_IMPLEMENTATION_METRICS_TRANSCRIPT.md)
