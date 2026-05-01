@@ -7,7 +7,9 @@
 
 ## 1. Database Performance & Latency (AlloyDB)
 
-The platform leverages AlloyDB for high-performance medical grounding. Below are the benchmarks achieved during stress testing with 176,000+ clinical records.
+- The platform leverages AlloyDB for high-performance medical grounding.
+- Since real-time chat interference is needed for patients' urgency, AlloyDB offers just that. 
+- Below are the benchmarks achieved during stress testing with 176,000+ clinical records.
 
 ### Query Latency on 176,000 Rows
 The index-optimized search ensures sub-second response times even as the dataset scales.
@@ -23,7 +25,8 @@ Remarkable latency characteristics observed during concurrent agent grounding re
 
 ## 2. OCR & Multimodal Classification
 
-The Vision Agent uses a fallback chain to classify and extract data from medical documents.
+- The Vision Agent uses a fallback chain to classify and extract data from medical documents.
+- This is before and after the injection of the system prompt analysis.
 
 ### OCR Input Quality & Detection
 Benchmark tests on various prescription formats (handwritten vs. digital).
