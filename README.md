@@ -2,6 +2,11 @@
 
 **An AI-powered multi-agent healthcare platform** that provides personalized chronic care management through intelligent conversational AI, real-time medication safety analysis, and transparent human-in-the-loop doctor handoffs.
 
+>  **⚠️ DISCLAIMER:**
+> This working demo currently has a **free-tier API key** attached to it; access to the necessary models may be limited. Thus, while experiencing some of the features shown in the video, this happened due to **the billing issues in my account**.  I tried my best to make sure my project holds up to the video, & i had my internals.So, thank you for your notice. Continue down. 
+
+
+
 Cloud Run API endpoint (for testing):
 https://cure-quest-api-315569715049.us-central1.run.app
 
@@ -49,13 +54,17 @@ Shreesha is a 22-year-old patient managing two chronic conditions simultaneously
 The demo walks through drug interaction questions, document uploads, doctor handoff reports, medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
+
+## This is an agentic workflow in ADK environment
 ![ADK demo video](assets/Working_adk_demo.gif)
 <!--
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
 ![OCR input sample](assets/Ocr_input%20(1).png)
 ![Latency benchmark](assets/Remarkable_latency_of_alloydb.png)
 -->
--->
+
+## For detailed diagrams of Agentic breakdown, refer here:
+[Agent Diagrams](docs/Agent_Digrams)
 
 ## Key Features
 ### Recipe Studio (Browse Recipes)
@@ -121,35 +130,44 @@ npm run dev
 ## Why this stack?
 
 ```mermaid
-graph TD
+
+graph LR
 
 %% Row 1
-A1["React + Vite"] --> B1["Fast interactive SPA + rapid iteration"] --> C1["Responsive learning UX"]
+A1["React + Vite"] --> B1["Fast interactive SPA + rapid iteration"]
+B1 --> C1["Responsive learning UX"]
 
 %% Row 2
-A2["Zustand persist"] --> B2["Simple global state + local persistence"] --> C2["Cross-page continuity"]
+A2["Zustand persist"] --> B2["Simple global state + local persistence"]
+B2 --> C2["Cross-page continuity"]
 
 %% Row 3
-A3["FastAPI + Pydantic"] --> B3["Typed contracts + auto docs"] --> C3["Faster API iteration"]
+A3["FastAPI + Pydantic"] --> B3["Typed contracts + auto docs"]
+B3 --> C3["Faster API iteration"]
 
 %% Row 4
-A4["Gemini 3.1 Flash + AlloyDB"] --> B4["LLM grounding with patient memory"] --> C4["Clinical context-aware responses"]
+A4["Gemini 3.1 Flash + AlloyDB"] --> B4["LLM grounding with patient memory"]
+B4 --> C4["Clinical context-aware responses"]
 
 %% Row 5
-A5["Google ADK"] --> B5["Multi-agent A2A orchestration"] --> C5["Specialist task delegation"]
+A5["Google ADK"] --> B5["Multi-agent A2A orchestration"]
+B5 --> C5["Specialist task delegation"]
 
 %% Row 6
-A6["MedSigLIP"] --> B6["Vision-based medical image classification"] --> C6["Prescription and symptom analysis"]
+A6["MedSigLIP"] --> B6["Vision-based medical image classification"]
+B6 --> C6["Prescription and symptom analysis"]
 
 %% Row 7
-A7["MCP (Model Context Protocol)"] --> B7["Standardised tool and data access"] --> C7["Safe agent-to-service boundaries"]
+A7["MCP (Model Context Protocol)"] --> B7["Standardised tool and data access"]
+B7 --> C7["Safe agent-to-service boundaries"]
 
 %% Row 8
-A8["AlloyDB + pgvector"] --> B8["Relational + vector patient brain"] --> C8["Unified memory and semantic search"]
+A8["AlloyDB + pgvector"] --> B8["Relational + vector patient brain"]
+B8 --> C8["Unified memory and semantic search"]
 
 %% Row 9
-A9["Cloud Run"] --> B9["Stateless containerised deployment"] --> C9["Scalable serverless backend"]
-
+A9["Cloud Run"] --> B9["Stateless containerised deployment"]
+B9 --> C9["Scalable serverless backend"]
 
 %% Styling
 classDef tech fill:#1a73e8,color:#fff,stroke:#0b57d0;
@@ -159,6 +177,8 @@ classDef outcome fill:#0f9d58,color:#fff,stroke:#0b7d43;
 class A1,A2,A3,A4,A5,A6,A7,A8,A9 tech;
 class B1,B2,B3,B4,B5,B6,B7,B8,B9 capability;
 class C1,C2,C3,C4,C5,C6,C7,C8,C9 outcome;
+
+
 ```
 
 ---
