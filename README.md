@@ -48,7 +48,7 @@ The demo walks through drug interaction questions, document uploads, doctor hand
 medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-> Some Markdown viewers do not render HTML video tags; use the direct link if needed.
+> Note: HTML video tags may not render in some Markdown viewers (e.g., GitHub mobile or IDE previews). If the embedded video doesn't display, use the direct link below.
 
 - [Working ADK demo video (mp4)](assets/Working_adk_demo.mp4)
 
@@ -60,7 +60,7 @@ medication reminders, and Gmail-based care summaries.
 
 ## Quick Start
 ### Prerequisites
-- Python `3.10+`
+- Python `3.10+` (3.12+ recommended)
 - Node.js `18+`
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
@@ -120,7 +120,7 @@ The backend API is prepared for Cloud Run deployment with `Dockerfile`, `.docker
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Vite, Tailwind CSS 4, Motion (Framer), Lucide Icons |
-| **Backend** | Python 3.10+, FastAPI, SQLAlchemy 2.0, Uvicorn |
+| **Backend** | Python 3.10+ (3.12+ recommended), FastAPI, SQLAlchemy 2.0, Uvicorn |
 | **AI Models** | Gemini 3.1 Flash (conversation), MedGemma (clinical), MedSigLIP (vision) |
 | **Database** | Google Cloud AlloyDB (PostgreSQL-compatible), SQLite for local dev |
 | **Google APIs** | Drive, Calendar, Gmail, Speech-to-Text, Text-to-Speech, Maps |
@@ -234,7 +234,7 @@ See [Connection Architecture](docs/CONNECTION_ARCHITECTURE.md) for the full conn
 ## AI/ML Section
 - Primary conversational model: Gemini 3.1 Flash.
 - Vision classification: MedSigLIP for prescription/symptom imagery.
-- Clinical reasoning path: MedGemma (current runtime routes still exist; Plan 2 calls for removal/replacement).
+- Clinical reasoning path: MedGemma (current runtime route: `/medical-models/medgemma`; deprecation planning tracked in Plan 2).
 - Embedding and memory workstreams are tracked in the planning documents.
 
 ## Styling & Theming
