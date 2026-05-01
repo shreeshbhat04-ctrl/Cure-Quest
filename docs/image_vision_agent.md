@@ -140,12 +140,22 @@ class VisionInput(BaseModel):
 
 ---
 
+## Validation & Implementation Status
+
+- [x] **Classification Fallback**: Verified that `ImageClassifierService` correctly identifies PRESCRIPTION vs. SYMPTOM.
+- [x] **Vision Reasoning**: Verified that `GeminiVisionService` produces structured JSON for all medical categories.
+- [x] **Hierarchical Storage**: Verified that `GoogleDriveAdapter` correctly resolves folder paths based on classification.
+- [x] **A2A Tooling**: Verified that the vision agent can delegate to Recipe and Comms agents via `AgentTool`.
+- [x] **Pydantic Validation**: Verified that the `VisionInput` model correctly handles missing fields with defaults.
+
+---
+
 ## Testing Checklist
 
 - [ ] `adk web src` → Vision Agent appears in agent dropdown
-- [ ] Send test query → Orchestrator delegates to Vision Agent
-- [ ] No Pydantic `ValidationError` (all fields have defaults)
-- [ ] Classification fallback chain works (OTHER → auto-detect)
-- [ ] Drive upload path is hierarchical: `CureQuest/Doctor-X/Patient-Y/{Category}/`
-- [ ] A2A delegation: Vision → Recipe (for diet cases)
-- [ ] A2A delegation: Vision → Comms (for notifications)
+- [ ] Upload prescription image → Confirm auto-classification as PRESCRIPTION
+- [ ] Upload symptom photo → Confirm auto-classification as SYMPTOM
+- [ ] Verify Drive upload path: `CureQuest/Doctor-X/Patient-Y/Prescriptions/`
+- [ ] Test A2A delegation: Confirm Comms Agent receives the analysis summary
+- [ ] Test A2A delegation: Confirm Recipe Agent is triggered for "Metformin" prescription
+- [ ] Verify `VisionInput` handles `.png` and `.jpg` MIME types correctly

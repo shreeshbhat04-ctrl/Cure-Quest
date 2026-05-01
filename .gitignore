@@ -51,6 +51,10 @@ assets/*.mp4
 .curequest.sql
 # Design & Planning (Local Only)
 design2.md
+docs/Diet_plan.md
+docs/Market_place.md
+docs/WIRING_CHECKLIST.md
+docs/CURE_QUEST_IMPLEMENTATION_METRICS_TRANSCRIPT.md
 docs/DIET_SECTION_RECIPE_ENHANCEMENT_PLAN.md
 docs/Final_Project.md
 docs/PLAN_1_REPO_STATE_AND_MISSING_ENDPOINTS.md
