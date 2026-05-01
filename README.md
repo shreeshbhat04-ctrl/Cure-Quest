@@ -48,9 +48,9 @@ The demo walks through drug interaction questions, document uploads, doctor hand
 medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
-> If the video does not render inline, download it directly.
+> Some Markdown viewers do not render HTML video tags; use the direct link if needed.
 
-- [Working ADK demo video](assets/Working_adk_demo.mp4)
+- [Working ADK demo video (mp4)](assets/Working_adk_demo.mp4)
 
 <video src="assets/Working_adk_demo.mp4" controls></video>
 
@@ -281,7 +281,7 @@ Core connection sequence from [Connection Architecture](docs/CONNECTION_ARCHITEC
 ## VALIDATION CHECKLIST
 - [ ] `.env` configured with required local values (see [Wiring Checklist](docs/WIRING_CHECKLIST.md)).
 - [ ] `python scripts/test_database_connection.py` passes.
-- [ ] `python scripts/seed_demo_patient.py` completes successfully.
+- [ ] `python -m cure_quest.scripts.seed` completes successfully.
 - [ ] `python scripts/test_mcp_connection.py` passes.
 - [ ] `uvicorn cure_quest.app:app --reload` serves `/health`.
 - [ ] ADK web launches from `adk_agents/` and can invoke MCP tools.
