@@ -49,6 +49,7 @@ medication reminders, and Gmail-based care summaries.
 
 ## Demo Media
 - [ADK demo video (mp4)](assets/Working_adk_demo.mp4)
+  - Stored at `assets/Working_adk_demo.mp4` in this repo (open in GitHub if the link does not resolve in your viewer).
 
 ![ADK demo screenshot](assets/Screenshot%202026-04-27%20231914.png)
 ![OCR input sample](assets/Ocr_input%20(1).png)
@@ -85,7 +86,7 @@ python scripts/print_alloydb_proxy_command.py
 $env:PYTHONPATH="src"
 python -m cure_quest.scripts.seed
 
-# Setup vector storage (optional)
+# Optional: enable AlloyDB vector storage for embedding-backed memory
 python scripts/setup_alloydb_vector.py
 ```
 
@@ -271,7 +272,7 @@ See [CLOUD_RUN_DEPLOYMENT](docs/CLOUD_RUN_DEPLOYMENT.md) for deploy steps and en
 ## Troubleshooting
 - Validate DB connectivity with `python scripts/test_database_connection.py`.
 - Validate MCP tool transport with `python scripts/test_mcp_connection.py`.
-- If ADK web shows extra packages, launch from `adk_agents/` (see [Wiring Checklist](docs/WIRING_CHECKLIST.md)).
+- If ADK web shows extra packages (e.g., `adapters/`, `api/`, `db/`), launch from `adk_agents/` (see [Wiring Checklist](docs/WIRING_CHECKLIST.md)).
 - Toggle `BRAIN_GATEWAY_MODE` between `direct` and `mcp` to isolate DB vs tool-transport issues.
 
 ## Contributing
