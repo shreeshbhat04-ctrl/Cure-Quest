@@ -21,6 +21,8 @@ https://cure-quest-api-315569715049.us-central1.run.app
 - [API Contracts](#api-contracts)
 - [Data Flow & State Management](#data-flow--state-management)
 - [AI/ML Section](#aiml-section)
+- [Results and Metrics](docs/results_and_metrics.md)
+- [Datasets Used](Datasets/)
 - [Styling & Theming](DESIGN.md#styling--theming)
 - [Appendix](#appendix)
 
@@ -587,6 +589,15 @@ class LS,ADMIN local;
 - **Unit Tests**: Located in `tests/`, covering adapters and core services.
 - **Integration Tests**: In `tests/integration/`, validating the full path from API to Database.
 - **Connectivity Tests**: `scripts/test_database_connection.py` and `scripts/test_mcp_connection.py`.
+
+---
+
+## Datasets Used
+The platform's AI models and grounding services are validated against the following clinical datasets:
+- [Clinical Medication Samples (Indian Market)](Datasets/Indian_medicine_sample_100.csv)
+- [Drug-Drug Interaction Mappings](Datasets/drug_interactions.csv)
+
+For performance benchmarks and OCR accuracy results derived from these datasets, see [Results and Metrics](docs/results_and_metrics.md).
 
 ---
 
