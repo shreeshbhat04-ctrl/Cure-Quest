@@ -43,37 +43,7 @@ Visualizing the extraction of structured clinical data from raw image inputs.
 ![Before and after input (1)](../assets/Before_and_after_input%20(1).png)
 
 ---
-
-## 3. Model Accuracy & Reasoning
-
-Comparison of Gemini Vision vs. Specialized Medical Models on symptom analysis.
-
-### Accurate Clinical Output
-High-fidelity extraction of medication names and dosages.
-
-![Accurate output](../assets/accurate_output.png)
-
-### Comparative Analysis
-Analysis performed by the specialized medical reasoning model compared to general-purpose outputs.
-
-![Analysis by the model](../assets/analysis_by_the_model.png)
-
-| Output by Gemini | Output by Vision |
-|------------------|------------------|
-| ![Output by gemini](../assets/output_by_gemini.png) | ![Output by vision](../assets/output_by_vision.png) |
-
----
-
-## 4. Platform Demo
-
-### Working ADK Multi-Agent Orchestration
-A live look at the Orchestrator coordinating between Vision, Recipe, and Comms agents.
-
-![Working adk demo](../assets/Working_adk_demo.gif)
-
----
-
-## 5. System Prompts & Logic
+## 3. System Prompts & Logic
 
 The results shown above are achieved through rigorous system prompting that grounds Gemini's multimodal reasoning in clinical safety and structured output.
 
@@ -125,3 +95,34 @@ LAYOUT:
 - HEADER: 'Cure-Quest Diagnostic Report'.
 - LEGEND: Numbered text legend reflecting clinical reasoning about severity, progression, or improvement.
 ```
+---
+
+## 4. Model Accuracy & Reasoning
+
+Comparison of Gemini Vision with good system prompts on symptom analysis.
+
+### Accurate Clinical Output
+High-fidelity extraction of medication names and dosages.
+
+![Accurate output](../assets/accurate_output.png)
+
+### Comparative Analysis
+Analysis performed by the specialized medical reasoning model compared to general-purpose outputs.
+
+![Analysis by the model](../assets/analysis_by_the_model.png)
+
+| Output by Gemini | Output by Medsigslip |
+|------------------|------------------|
+| ![Output by gemini](../assets/output_by_gemini.png) | ![Output by vision](../assets/output_by_vision.png) |
+
+---
+
+## 5. Platform Demo
+
+### Working ADK Multi-Agent Orchestration
+A live look at the Orchestrator coordinating between Vision, Recipe, and Comms agents.
+
+![Working adk demo](../assets/Working_adk_demo.gif)
+
+---
+
