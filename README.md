@@ -56,7 +56,7 @@ medication reminders, and Gmail-based care summaries.
 
 ## Quick Start
 ### Prerequisites
-- Python `3.10+` (3.12+ recommended)
+- Python 3.10+ (3.12+ recommended)
 - Node.js `18+`
 - Google Cloud project with APIs enabled (Drive, Calendar, Gmail, Speech, Maps)
 - AlloyDB instance (or use SQLite for local dev)
