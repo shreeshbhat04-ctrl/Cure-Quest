@@ -21,13 +21,7 @@ https://cure-quest-api-315569715049.us-central1.run.app
 - [API Contracts](#api-contracts)
 - [Data Flow & State Management](#data-flow--state-management)
 - [AI/ML Section](#aiml-section)
-- [Styling & Theming](#styling--theming)
-- [Testing](#testing)
-- [Build & Deployment](#build--deployment)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [Validation & Manifest](#validation--manifest)
-- [VALIDATION CHECKLIST](#validation-checklist)
+- [Styling & Theming](DESIGN.md#styling--theming)
 - [Appendix](#appendix)
 
 ## Project Overview
@@ -593,15 +587,6 @@ class LS,ADMIN local;
 - **Unit Tests**: Located in `tests/`, covering adapters and core services.
 - **Integration Tests**: In `tests/integration/`, validating the full path from API to Database.
 - **Connectivity Tests**: `scripts/test_database_connection.py` and `scripts/test_mcp_connection.py`.
-
----
-
-## VALIDATION CHECKLIST
-- [ ] `.env` has `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `DATABASE_URL`.
-- [ ] `python -m cure_quest.scripts.seed` seeds Shreesha's care journey data.
-- [ ] `uvicorn cure_quest.app:app --reload` serves `/docs` (Swagger UI).
-- [ ] ADK agent launches from `adk_agents/` and communicates with the local MCP server.
-- [ ] `pytest` passes with 80%+ coverage on core clinical routes.
 
 ---
 
