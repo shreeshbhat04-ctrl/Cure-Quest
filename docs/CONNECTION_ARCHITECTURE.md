@@ -2,12 +2,6 @@
 
 This document focuses on infrastructure and external connection wiring for Cure-Quest.
 
-Out of scope for this phase:
-
-- agent orchestration logic
-- agent trigger rules
-- workflow automation depth
-
 The goal is to make every external connection path explicit so implementation can proceed safely.
 
 ## 1. Core runtime surfaces
